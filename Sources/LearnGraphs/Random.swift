@@ -7,7 +7,7 @@ extension AdjList {
   public init<C>(
     random: C, edgeProb: Double, using: inout some RandomNumberGenerator
   ) where C: Collection<V> {
-    self.init()
+    self.init(vertices: Array(random))
     for (i, v) in random.enumerated() {
       for (j, v1) in random.enumerated() {
         if j <= i {
@@ -27,7 +27,7 @@ extension AdjList {
 
   public init<C>(random: C, edgeCount: Int, using: inout some RandomNumberGenerator)
   where C: Collection<V> {
-    self.init()
+    self.init(vertices: Array(random))
 
     var allEdges: Set<Pair<V>> = .init()
     for (i, v) in random.enumerated() {
@@ -54,15 +54,5 @@ extension AdjList {
   public init<C>(random: C, edgeCount: Int) where C: Collection<V> {
     var rng = SystemRandomNumberGenerator()
     self.init(random: random, edgeCount: edgeCount, using: &rng)
-  }
-
-  public mutating func insertEdge(from: V, to: V) {
-    for v in [from, to] {
-      if vertices[v] == nil {
-        vertices[v] = Set()
-      }
-    }
-    vertices[from]!.insert(to)
-    vertices[to]!.insert(from)
   }
 }
