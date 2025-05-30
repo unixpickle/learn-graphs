@@ -5,7 +5,7 @@ private struct Pair<V: Hashable>: Hashable {
 
 extension AdjList {
   public init<C>(
-    random: C, edgeProb: Double, using: inout RandomNumberGenerator
+    random: C, edgeProb: Double, using: inout some RandomNumberGenerator
   ) where C: Collection<V> {
     self.init()
     for (i, v) in random.enumerated() {
@@ -21,20 +21,11 @@ extension AdjList {
   }
 
   public init<C>(random: C, edgeProb: Double) where C: Collection<V> {
-    self.init()
-    for (i, v) in random.enumerated() {
-      for (j, v1) in random.enumerated() {
-        if j <= i {
-          continue
-        }
-        if Double.random(in: 0.0..<1.0) < edgeProb {
-          insertEdge(from: v, to: v1)
-        }
-      }
-    }
+    var rng = SystemRandomNumberGenerator()
+    self.init(random: random, edgeProb: edgeProb, using: &rng)
   }
 
-  public init<C>(random: C, edgeCount: Int, using: inout RandomNumberGenerator)
+  public init<C>(random: C, edgeCount: Int, using: inout some RandomNumberGenerator)
   where C: Collection<V> {
     self.init()
 
@@ -47,6 +38,10 @@ extension AdjList {
         allEdges.insert(Pair(x: v, y: v1))
       }
     }
+    assert(
+      allEdges.count >= edgeCount,
+      "edgeCount \(edgeCount) is more than total edge count \(allEdges.count)"
+    )
     for _ in 0..<edgeCount {
       guard let x = allEdges.randomElement(using: &using) else {
         fatalError("requested edgeCount \(edgeCount) is greater than the maximum number of edges")
@@ -57,24 +52,8 @@ extension AdjList {
   }
 
   public init<C>(random: C, edgeCount: Int) where C: Collection<V> {
-    self.init()
-
-    var allEdges: Set<Pair<V>> = .init()
-    for (i, v) in random.enumerated() {
-      for (j, v1) in random.enumerated() {
-        if j <= i {
-          continue
-        }
-        allEdges.insert(Pair(x: v, y: v1))
-      }
-    }
-    for _ in 0..<edgeCount {
-      guard let x = allEdges.randomElement() else {
-        fatalError("requested edgeCount \(edgeCount) is greater than the maximum number of edges")
-      }
-      insertEdge(from: x.x, to: x.y)
-      allEdges.remove(x)
-    }
+    var rng = SystemRandomNumberGenerator()
+    self.init(random: random, edgeCount: edgeCount, using: &rng)
   }
 
   public mutating func insertEdge(from: V, to: V) {

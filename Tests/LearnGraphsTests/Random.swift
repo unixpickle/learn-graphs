@@ -8,4 +8,7 @@ func testRandomGraph() {
   let edgeCount = graph.edgeCount
   let expectedCount = 4950 / 10
   #expect(edgeCount < expectedCount * 2 && edgeCount > expectedCount / 2)
+
+  let graph1 = AdjList(random: 0..<100, edgeCount: 100)
+  #expect(graph1.edgeCount == 100)
 }
