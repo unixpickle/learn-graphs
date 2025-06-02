@@ -34,6 +34,13 @@ public struct AdjList<V: Hashable> {
     }
   }
 
+  public mutating func insert(vertex: V) {
+    if vertices.contains(vertex) {
+      return
+    }
+    vertices.insert(vertex)
+  }
+
   public mutating func insertEdge(from: V, to: V) {
     for v in [from, to] {
       if edges[v] == nil {

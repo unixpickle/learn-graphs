@@ -1,8 +1,3 @@
-private struct Pair<V: Hashable>: Hashable {
-  let x: V
-  let y: V
-}
-
 extension AdjList {
   public init<C>(
     random: C, edgeProb: Double, using: inout some RandomNumberGenerator
@@ -29,13 +24,13 @@ extension AdjList {
   where C: Collection<V> {
     self.init(vertices: Array(random))
 
-    var allEdges: Set<Pair<V>> = .init()
+    var allEdges: Set<DirectedEdge<V>> = .init()
     for (i, v) in random.enumerated() {
       for (j, v1) in random.enumerated() {
         if j <= i {
           continue
         }
-        allEdges.insert(Pair(x: v, y: v1))
+        allEdges.insert(DirectedEdge(from: v, to: v1))
       }
     }
     assert(
@@ -47,7 +42,7 @@ extension AdjList {
         fatalError("requested edgeCount \(edgeCount) is greater than the maximum number of edges")
       }
       allEdges.remove(x)
-      insertEdge(from: x.x, to: x.y)
+      insertEdge(from: x.from, to: x.to)
     }
   }
 
