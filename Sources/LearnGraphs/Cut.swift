@@ -1,24 +1,21 @@
 extension AdjList {
 
-  /// Cut the graph into a subgraph with the given vertices and another
-  /// subgraph without the given vertices.
+  /// Cut the graph into a subgraph without the given vertices, and another
+  /// subgraph with the given vertices (which is returned).
   ///
   /// If the supplied vertices contains vertices not in the graph, they will be
   /// ignored.
   ///
   /// Also returns the cut-set of the cut, i.e. the edges that spanned
   /// between the two subgraphs.
-  public func cut<C>(vertices vs: C) -> (AdjList, AdjList, Set<UndirectedEdge<V>>)
+  public mutating func cut<C>(vertices vs: C) -> (AdjList, Set<UndirectedEdge<V>>)
   where C: Collection<V> {
     let vs = Set(vs)
 
     var trueGraph = AdjList()
-    var falseGraph = AdjList()
     for v in vertices {
       if vs.contains(v) {
         trueGraph.insert(vertex: v)
-      } else {
-        falseGraph.insert(vertex: v)
       }
     }
 
@@ -30,14 +27,16 @@ extension AdjList {
         if sourceInVs != otherInVs {
           cutSet.insert(UndirectedEdge(sourceVertex, otherVertex))
         } else if sourceInVs {
-          trueGraph.insertEdge(from: sourceVertex, to: otherVertex)
-        } else {
-          falseGraph.insertEdge(from: sourceVertex, to: otherVertex)
+          trueGraph.insertEdge(sourceVertex, otherVertex)
         }
       }
     }
 
-    return (trueGraph, falseGraph, cutSet)
+    for v in vs {
+      remove(vertex: v)
+    }
+
+    return (trueGraph, cutSet)
   }
 
 }

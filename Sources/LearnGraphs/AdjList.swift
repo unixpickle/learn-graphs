@@ -2,6 +2,10 @@ public struct AdjList<V: Hashable> {
   public var vertices: Set<V>
   public var edges: [V: Set<V>]
 
+  public var edgeSet: Set<UndirectedEdge<V>> {
+    Set(edges.flatMap { kv in kv.1.map { x in UndirectedEdge(kv.0, x) } })
+  }
+
   public var edgeCount: Int {
     edges.values.reduce(0, { $0 + $1.count }) / 2
   }
@@ -16,8 +20,11 @@ public struct AdjList<V: Hashable> {
     self.edges = edges
   }
 
-  public mutating func remove(vertex: V) {
-    vertices.remove(vertex)
+  @discardableResult
+  public mutating func remove(vertex: V) -> Bool {
+    if vertices.remove(vertex) == nil {
+      return false
+    }
     if let neighbors = edges.removeValue(forKey: vertex) {
       for neighbor in neighbors {
         edges[neighbor]!.remove(neighbor)
@@ -26,29 +33,33 @@ public struct AdjList<V: Hashable> {
         }
       }
     }
+    return true
   }
 
-  public mutating func removeEdge(from: V, to: V) {
+  @discardableResult
+  public mutating func removeEdge(_ from: V, _ to: V) -> Bool {
     if edges[from]?.remove(to) != nil {
       edges[to]!.remove(from)
+      return true
+    } else {
+      return false
     }
   }
 
-  public mutating func insert(vertex: V) {
-    if vertices.contains(vertex) {
-      return
-    }
-    vertices.insert(vertex)
+  @discardableResult
+  public mutating func insert(vertex: V) -> Bool {
+    vertices.insert(vertex).inserted
   }
 
-  public mutating func insertEdge(from: V, to: V) {
+  @discardableResult
+  public mutating func insertEdge(_ from: V, _ to: V) -> Bool {
     for v in [from, to] {
       if edges[v] == nil {
         edges[v] = Set()
       }
     }
     edges[from]!.insert(to)
-    edges[to]!.insert(from)
+    return edges[to]!.insert(from).inserted
   }
 
 }

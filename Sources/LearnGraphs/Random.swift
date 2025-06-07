@@ -9,7 +9,7 @@ extension AdjList {
           continue
         }
         if Double.random(in: 0.0..<1.0, using: &using) < edgeProb {
-          insertEdge(from: v, to: v1)
+          insertEdge(v, v1)
         }
       }
     }
@@ -42,7 +42,7 @@ extension AdjList {
         fatalError("requested edgeCount \(edgeCount) is greater than the maximum number of edges")
       }
       allEdges.remove(x)
-      insertEdge(from: x.from, to: x.to)
+      insertEdge(x.from, x.to)
     }
   }
 
