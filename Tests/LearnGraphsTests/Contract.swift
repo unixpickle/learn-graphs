@@ -155,3 +155,79 @@ func testContractMulti3() {
     ]
   )
 }
+
+@Test
+func testContractNoLeak() {
+  class Vertex: Hashable {
+    nonisolated(unsafe) static var refCount: Int = 0
+
+    let value: Int
+
+    init(value: Int) {
+      self.value = value
+      Self.refCount += 1
+    }
+
+    deinit {
+      Self.refCount -= 1
+    }
+
+    static func == (lhs: Vertex, rhs: Vertex) -> Bool {
+      lhs.value == rhs.value
+    }
+
+    func hash(into hasher: inout Hasher) {
+      hasher.combine(self.value)
+    }
+  }
+  {
+    let vertices = [
+      Vertex(value: 0),
+      Vertex(value: 1),
+      Vertex(value: 2),
+      Vertex(value: 3),
+      Vertex(value: 4),
+      Vertex(value: 5),
+    ]
+    var graph = AdjList(vertices: vertices)
+    graph.insertEdge(vertices[0], vertices[1])
+    graph.insertEdge(vertices[0], vertices[2])
+    graph.insertEdge(vertices[0], vertices[3])
+    graph.insertEdge(vertices[1], vertices[3])
+    graph.insertEdge(vertices[2], vertices[3])
+    graph.insertEdge(vertices[4], vertices[0])
+    graph.insertEdge(vertices[5], vertices[1])
+    graph.insertEdge(vertices[5], vertices[2])
+    graph.insertEdge(vertices[5], vertices[3])
+    let (g1, edgeMap) = graph.contract(edges: [
+      UndirectedEdge(vertices[2], vertices[3]),
+      UndirectedEdge(vertices[0], vertices[1]),
+      UndirectedEdge(vertices[0], vertices[3]),
+    ])
+
+    #expect(
+      g1.edgeSet
+        == Set([
+          UndirectedEdge(
+            Set([vertices[0], vertices[1], vertices[2], vertices[3]]), Set([vertices[4]])),
+          UndirectedEdge(
+            Set([vertices[0], vertices[1], vertices[2], vertices[3]]), Set([vertices[5]])),
+        ])
+    )
+    #expect(Vertex.refCount > 0)
+    #expect(
+      edgeMap == [
+        UndirectedEdge(
+          Set([vertices[0], vertices[1], vertices[2], vertices[3]]), Set([vertices[4]])): Set([
+            UndirectedEdge(vertices[0], vertices[4])
+          ]),
+        UndirectedEdge(
+          Set([vertices[0], vertices[1], vertices[2], vertices[3]]), Set([vertices[5]])): Set([
+            UndirectedEdge(vertices[1], vertices[5]), UndirectedEdge(vertices[2], vertices[5]),
+            UndirectedEdge(vertices[3], vertices[5]),
+          ]),
+      ]
+    )
+  }()
+  #expect(Vertex.refCount == 0)
+}

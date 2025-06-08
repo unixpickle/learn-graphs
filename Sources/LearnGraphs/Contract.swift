@@ -13,6 +13,7 @@ private class LinkedList<V> {
     first == nil
   }
 
+  var count: Int = 0
   var first: Node? = nil
   var last: Node? = nil
 
@@ -22,6 +23,7 @@ private class LinkedList<V> {
   }
 
   func insert(data: V) {
+    count += 1
     let node = Node(data: data)
     if let f = first {
       f.prev = node
@@ -47,6 +49,7 @@ private class LinkedList<V> {
     }
     other.first = nil
     other.last = nil
+    other.count = 0
   }
 
   func array() -> [V] {
@@ -90,15 +93,23 @@ extension AdjList {
     }
     for contractEdge in e {
       let vs: [LinkedList<V>] = contractEdge.vertices.map { v2vs[$0]! }
-      if vs[0] === vs[1] {
+      var keepList = vs[0]
+      var deleteList = vs[1]
+
+      if keepList === deleteList {
         continue
+      } else if deleteList.count > keepList.count {
+        // Minimize the number of entries in v2vs that we have to update
+        swap(&keepList, &deleteList)
       }
 
-      // Join vs[1] into vs[0] and point all vertices in vs[1] to vs[0].
-      for item in vs[1].array() {
-        v2vs[item] = vs[0]
+      // Point all vertices that pointed to deleteList to keepList.
+      for item in deleteList.array() {
+        v2vs[item] = keepList
       }
-      vs[0].join(other: vs[1])
+
+      // Move deleteList items into keepList.
+      keepList.join(other: deleteList)
     }
 
     var newGraph: AdjList<Set<V>> = .init()
