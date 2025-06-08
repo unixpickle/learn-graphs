@@ -20,6 +20,17 @@ public struct AdjList<V: Hashable> {
     self.edges = edges
   }
 
+  public func map<V1>(_ fn: (V) -> V1) -> AdjList<V1> {
+    AdjList<V1>(
+      vertices: vertices.map(fn),
+      edges: [V1: Set<V1>](
+        uniqueKeysWithValues: edges.map { key, value in
+          (fn(key), Set(value.map(fn)))
+        }
+      )
+    )
+  }
+
   @discardableResult
   public mutating func remove(vertex: V) -> Bool {
     if vertices.remove(vertex) == nil {
@@ -60,6 +71,12 @@ public struct AdjList<V: Hashable> {
     }
     edges[from]!.insert(to)
     return edges[to]!.insert(from).inserted
+  }
+
+  @discardableResult
+  public mutating func insertEdge(_ edge: UndirectedEdge<V>) -> Bool {
+    let items = Array(edge.vertices)
+    return insertEdge(items[0], items[1])
   }
 
 }

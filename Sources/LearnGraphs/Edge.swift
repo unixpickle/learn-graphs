@@ -13,5 +13,16 @@ public struct UndirectedEdge<V: Hashable>: Hashable {
 
   public init(_ from: V, _ to: V) {
     self.vertices = Set([from, to])
+    precondition(self.vertices.count == 2, "vertices in edge are equal")
+  }
+
+  private init(vertices: Set<V>) {
+    self.vertices = vertices
+  }
+
+  public func map<V1>(_ fn: (V) -> V1) -> UndirectedEdge<V1> {
+    let newSet = Set(vertices.map(fn))
+    precondition(newSet.count == 2, "mapping identified vertices that used to be separate")
+    return UndirectedEdge<V1>(vertices: newSet)
   }
 }
