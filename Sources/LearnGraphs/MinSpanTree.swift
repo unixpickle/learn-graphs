@@ -1,4 +1,4 @@
-public enum MinSpanTreeAlgorithm {
+public enum MinSpanTreeAlgorithm: Sendable {
   case boruvka
 }
 

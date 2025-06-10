@@ -1,4 +1,4 @@
-public struct AdjList<V: Hashable> {
+public struct AdjList<V: Hashable>: Hashable {
   public var vertices: Set<V>
   public var edges: [V: Set<V>]
 
