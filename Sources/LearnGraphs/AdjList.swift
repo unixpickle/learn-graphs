@@ -38,7 +38,7 @@ public struct AdjList<V: Hashable>: Hashable {
     }
     if let neighbors = edges.removeValue(forKey: vertex) {
       for neighbor in neighbors {
-        edges[neighbor]!.remove(neighbor)
+        edges[neighbor]!.remove(vertex)
         if edges[neighbor]!.isEmpty {
           edges.removeValue(forKey: neighbor)
         }
@@ -64,6 +64,7 @@ public struct AdjList<V: Hashable>: Hashable {
 
   @discardableResult
   public mutating func insertEdge(_ from: V, _ to: V) -> Bool {
+    precondition(from != to, "cannot create an edge from a vertex to itself")
     for v in [from, to] {
       if edges[v] == nil {
         edges[v] = Set()
