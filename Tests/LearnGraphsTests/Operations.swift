@@ -4,7 +4,7 @@ import Testing
 
 @Test
 func testCoW() {
-  var graph = AdjList(vertices: 0...2)
+  var graph = Graph(vertices: 0...2)
   graph.insertEdge(0, 1)
   graph.insertEdge(1, 2)
 

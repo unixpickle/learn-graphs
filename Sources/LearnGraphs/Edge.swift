@@ -8,7 +8,7 @@ public struct DirectedEdge<V: Hashable>: Hashable {
   }
 }
 
-public struct UndirectedEdge<V: Hashable>: Hashable {
+public struct Edge<V: Hashable>: Hashable {
   public let vertices: Set<V>
 
   public init(_ from: V, _ to: V) {
@@ -20,9 +20,9 @@ public struct UndirectedEdge<V: Hashable>: Hashable {
     self.vertices = vertices
   }
 
-  public func map<V1>(_ fn: (V) -> V1) -> UndirectedEdge<V1> {
+  public func map<V1>(_ fn: (V) -> V1) -> Edge<V1> {
     let newSet = Set(vertices.map(fn))
     precondition(newSet.count == 2, "mapping identified vertices that used to be separate")
-    return UndirectedEdge<V1>(vertices: newSet)
+    return Edge<V1>(vertices: newSet)
   }
 }

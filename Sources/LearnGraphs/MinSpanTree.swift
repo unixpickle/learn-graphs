@@ -2,23 +2,23 @@ public enum MinSpanTreeAlgorithm: Sendable {
   case boruvka
 }
 
-extension AdjList {
+extension Graph {
 
   /// Compute the minimum spanning tree of the graph.
   ///
   /// If the graph has multiple connected components, then a separate spanning
   /// tree is computed for each component.
   public func minimumSpanningTree<C>(
-    algorithm: MinSpanTreeAlgorithm = .boruvka, edgeCost: (UndirectedEdge<V>) -> C
-  ) -> AdjList where C: Comparable {
+    algorithm: MinSpanTreeAlgorithm = .boruvka, edgeCost: (Edge<V>) -> C
+  ) -> Graph where C: Comparable {
     switch algorithm {
     case .boruvka:
       boruvka(edgeCost: edgeCost)
     }
   }
 
-  private func boruvka<C>(edgeCost: (UndirectedEdge<V>) -> C) -> AdjList where C: Comparable {
-    var minEdge = [V: (edge: UndirectedEdge<V>, cost: C)]()
+  private func boruvka<C>(edgeCost: (Edge<V>) -> C) -> Graph where C: Comparable {
+    var minEdge = [V: (edge: Edge<V>, cost: C)]()
     for edge in edgeSet {
       let cost = edgeCost(edge)
 
@@ -38,18 +38,11 @@ extension AdjList {
     let contractEdges = minEdge.values.map { $0.edge }
     let (contracted, edgeMap) = contract(edges: contractEdges)
 
-    // Use a representative sample from each group of vertices to avoid
-    // changing the vertex type at each Boruvka step.
-    var representatives = [Set<V>: V]()
-    for v in contracted.vertices {
-      representatives[v] = v.first!
-    }
-
     // Map edges in the new graph to the min-cost edge in the old graph.
-    var minCostConnections = [UndirectedEdge<V>: (edge: UndirectedEdge<V>, cost: C)]()
+    var minCostConnections = [Edge<V>: (edge: Edge<V>, cost: C)]()
     for (newEdge, oldEdges) in edgeMap {
       let oldEdges = Array(oldEdges)
-      let newEdge = newEdge.map { representatives[$0]! }
+      let newEdge = newEdge.map { $0.representative }
       let costs = oldEdges.map { edgeCost($0) }
 
       var minIdx = 0
@@ -64,11 +57,11 @@ extension AdjList {
       minCostConnections[newEdge] = (edge: oldEdges[minIdx], cost: minCost)
     }
 
-    let subTree = contracted.map { representatives[$0]! }.boruvka { newEdge in
+    let subTree = contracted.map { $0.representative }.boruvka { newEdge in
       minCostConnections[newEdge]!.cost
     }
 
-    var result = AdjList(vertices: vertices)
+    var result = Graph(vertices: vertices)
     for edge in subTree.edgeSet {
       result.insertEdge(minCostConnections[edge]!.edge)
     }

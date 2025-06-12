@@ -77,7 +77,28 @@ private class LinkedList<V> {
   }
 }
 
-extension AdjList {
+public class ContractedVertex<V>: Hashable where V: Hashable {
+  public let vertices: Set<V>
+
+  /// An arbitrary vertex in the set that can be used to represent this vertex
+  /// for recursive algorithms.
+  public let representative: V
+
+  internal init(vertices: Set<V>) {
+    self.vertices = vertices
+    self.representative = vertices.first!
+  }
+
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(ObjectIdentifier(self))
+  }
+
+  public static func == (_ a: ContractedVertex<V>, _ b: ContractedVertex<V>) -> Bool {
+    a === b
+  }
+}
+
+extension Graph {
 
   /// Contract the edges to arrive at a new graph where vertices in the new
   /// graph correspond to one or more vertices in this graph.
@@ -85,14 +106,49 @@ extension AdjList {
   /// Edges between vertices of the new graph may correspond to multiple
   /// original edges in the graph, and this mapping is returned.
   public func contract<C>(edges e: C) -> (
-    AdjList<Set<V>>, [UndirectedEdge<Set<V>>: Set<UndirectedEdge<V>>]
-  ) where C: Collection<UndirectedEdge<V>> {
-    var v2vs = [V: LinkedList<V>]()
-    for v in vertices {
-      v2vs[v] = .init(v)
+    Graph<ContractedVertex<V>>, [Edge<ContractedVertex<V>>: Set<Edge<V>>]
+  ) where C: Collection<Edge<V>> {
+    var newGraph: Graph<ContractedVertex<V>> = .init()
+    var vMap = [V: ContractedVertex<V>]()
+    for s in contractionGroups(edges: e, includeSingle: true) {
+      let cv = ContractedVertex(vertices: s)
+      for v in s {
+        vMap[v] = cv
+      }
+      newGraph.insert(vertex: cv)
     }
+
+    var edgeMap = [Edge<ContractedVertex<V>>: Set<Edge<V>>]()
+    for edge in edgeSet {
+      let vs = edge.vertices.map { vMap[$0]! }
+      if vs[0] == vs[1] {
+        continue
+      }
+      edgeMap[Edge(vs[0], vs[1]), default: .init()].insert(edge)
+      newGraph.insertEdge(vs[0], vs[1])
+    }
+
+    return (newGraph, edgeMap)
+  }
+
+  /// Perform the core part of edge contraction by gathering sets of vertices
+  /// that become equivalent under contraction.
+  ///
+  /// If a vertex is not involved in a merge, then it will only be included in
+  /// a singleton set if includeSingle is true.
+  public func contractionGroups<C>(edges e: C, includeSingle: Bool) -> [Set<V>]
+  where C: Collection<Edge<V>> {
+    var v2vs = [V: LinkedList<V>]()
     for contractEdge in e {
-      let vs: [LinkedList<V>] = contractEdge.vertices.map { v2vs[$0]! }
+      let vs: [LinkedList<V>] = contractEdge.vertices.map { v in
+        if let result = v2vs[v] {
+          return result
+        } else {
+          let x: LinkedList<V> = .init(v)
+          v2vs[v] = x
+          return x
+        }
+      }
       var keepList = vs[0]
       var deleteList = vs[1]
 
@@ -112,31 +168,25 @@ extension AdjList {
       keepList.join(other: deleteList)
     }
 
-    var newGraph: AdjList<Set<V>> = .init()
-    var sets = [V: Set<V>]()
-    while let (v, vs) = v2vs.popFirst() {
-      if sets[v] != nil {
-        continue
+    var result = [ObjectIdentifier: Set<V>]()
+    for item in v2vs.values {
+      let id = ObjectIdentifier(item)
+      if result[id] == nil {
+        result[id] = Set(item.array())
       }
-      let vSet = Set(vs.array())
-      for v1 in vSet {
-        sets[v1] = vSet
-      }
-      newGraph.insert(vertex: vSet)
     }
 
-    var edgeMap = [UndirectedEdge<Set<V>>: Set<UndirectedEdge<V>>]()
-    for edge in edgeSet {
-      let vs = Array(edge.vertices)
-      let vSet1 = sets[vs[0]]!
-      let vSet2 = sets[vs[1]]!
-      if vSet1 == vSet2 {
-        continue
+    var resultArray = Array(result.values)
+    if includeSingle {
+      let included = Set(resultArray.flatMap { $0 })
+      for v in vertices {
+        if !included.contains(v) {
+          resultArray.append([v])
+        }
       }
-      edgeMap[UndirectedEdge(vSet1, vSet2), default: .init()].insert(edge)
-      newGraph.insertEdge(vSet1, vSet2)
     }
-    return (newGraph, edgeMap)
+
+    return resultArray
   }
 
 }

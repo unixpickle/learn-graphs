@@ -5,7 +5,7 @@ import Testing
 @Test(arguments: [MinSpanTreeAlgorithm.boruvka])
 func testSimpleMinimumSpanningTree(_ algo: MinSpanTreeAlgorithm) {
   // Graph shown on wikipedia: https://en.wikipedia.org/wiki/File:Multiple_minimum_spanning_trees.svg
-  var graph = AdjList(vertices: ["A", "B", "C", "D", "E", "F"])
+  var graph = Graph(vertices: ["A", "B", "C", "D", "E", "F"])
   graph.insertEdge("A", "B")
   graph.insertEdge("A", "D")
   graph.insertEdge("A", "E")
@@ -15,16 +15,16 @@ func testSimpleMinimumSpanningTree(_ algo: MinSpanTreeAlgorithm) {
   graph.insertEdge("C", "E")
   graph.insertEdge("C", "F")
   graph.insertEdge("E", "F")
-  let weights: [UndirectedEdge<String>: Int] = [
-    UndirectedEdge("A", "B"): 1,
-    UndirectedEdge("A", "D"): 4,
-    UndirectedEdge("A", "E"): 3,
-    UndirectedEdge("B", "D"): 4,
-    UndirectedEdge("B", "E"): 2,
-    UndirectedEdge("D", "E"): 4,
-    UndirectedEdge("C", "E"): 4,
-    UndirectedEdge("C", "F"): 5,
-    UndirectedEdge("E", "F"): 7,
+  let weights: [Edge<String>: Int] = [
+    Edge("A", "B"): 1,
+    Edge("A", "D"): 4,
+    Edge("A", "E"): 3,
+    Edge("B", "D"): 4,
+    Edge("B", "E"): 2,
+    Edge("D", "E"): 4,
+    Edge("C", "E"): 4,
+    Edge("C", "F"): 5,
+    Edge("E", "F"): 7,
   ]
 
   let tree = graph.minimumSpanningTree(algorithm: algo) { weights[$0]! }
@@ -35,9 +35,9 @@ func testSimpleMinimumSpanningTree(_ algo: MinSpanTreeAlgorithm) {
 @Test(arguments: [MinSpanTreeAlgorithm.boruvka])
 func testBoruvkaRandom(_ algo: MinSpanTreeAlgorithm) {
   // Make a multi-component random graph.
-  var graph = AdjList<Int>()
+  var graph = Graph<Int>()
   while graph.components().count < 2 {
-    graph = AdjList(random: 0..<100, edgeCount: 200)
+    graph = Graph(random: 0..<100, edgeCount: 200)
   }
 
   // Randomize edge weights by permuting indices.

@@ -1,4 +1,4 @@
-extension AdjList {
+extension Graph {
   public init<C>(
     random: C, edgeProb: Double, using: inout some RandomNumberGenerator
   ) where C: Collection<V> {

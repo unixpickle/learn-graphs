@@ -1,16 +1,16 @@
-extension AdjList {
+extension Graph {
 
   /// Get the connected components of the graph.
   ///
   /// If the graph is empty, this returns a single empty graph in the lits.
-  public func components() -> [AdjList] {
+  public func components() -> [Graph] {
     if vertices.isEmpty {
       [self]
     } else {
-      contract(edges: edgeSet).0.vertices.map { chop in
-        AdjList(
+      contractionGroups(edges: edgeSet, includeSingle: true).map { chop in
+        Graph(
           vertices: chop,
-          edges: Dictionary(uniqueKeysWithValues: edges.filter { chop.contains($0.0) })
+          adjacencies: Dictionary(uniqueKeysWithValues: adjacencies.filter { chop.contains($0.0) })
         )
       }
     }
