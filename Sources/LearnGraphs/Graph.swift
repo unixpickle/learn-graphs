@@ -120,4 +120,21 @@ public struct Graph<V: Hashable>: Hashable {
     vertices.contains(vertex)
   }
 
+  public mutating func filterVertices(_ c: (V) -> Bool) {
+    vertices = Set(vertices.filter { c($0) })
+    adjacencies = Dictionary(
+      uniqueKeysWithValues: adjacencies.filter {
+        vertices.contains($0.0)
+      }.map {
+        ($0.0, $0.1.intersection(vertices))
+      }
+    )
+  }
+
+  public func filteringVertices(_ c: (V) -> Bool) -> Self {
+    var result = self
+    result.filterVertices(c)
+    return result
+  }
+
 }

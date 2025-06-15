@@ -25,7 +25,7 @@ let package = Package(
       ]
     ),
     .executableTarget(
-      name: "LearnGraphsRunTest",
+      name: "TimeMatchings",
       dependencies: [
         "LearnGraphs"
       ]

@@ -528,43 +528,48 @@ extension Graph {
 
       /// Verify that the paths along the tree are all alternating.
       func assertTreeValid(graph: Graph<Vertex>, matching: Set<Edge<Vertex>>) {
-        var searchNodes: Set<Vertex> = [root]
-        var seenEdges: Set<Edge<Vertex>> = []
-        while let nextNode = searchNodes.popFirst() {
-          let nodeChildren = children(vertex: nextNode)
-          if nodeChildren.isEmpty {
-            continue
-          }
-          if isOuter(vertex: nextNode) {
-            // Outer vertex.
-            for v in nodeChildren {
-              assert(!matching.contains(Edge(nextNode, v)))
+        #if DEBUG
+          var searchNodes: Set<Vertex> = [root]
+          var seenEdges: Set<Edge<Vertex>> = []
+          while let nextNode = searchNodes.popFirst() {
+            let nodeChildren = children(vertex: nextNode)
+            if nodeChildren.isEmpty {
+              continue
             }
-          } else {
-            // Inner vertex.
-            assert(nodeChildren.count == 1)
-            assert(matching.contains(Edge(nextNode, nodeChildren.first!)))
+            if isOuter(vertex: nextNode) {
+              // Outer vertex.
+              for v in nodeChildren {
+                assert(!matching.contains(Edge(nextNode, v)))
+              }
+            } else {
+              // Inner vertex.
+              assert(nodeChildren.count == 1)
+              assert(matching.contains(Edge(nextNode, nodeChildren.first!)))
+            }
+            for v in nodeChildren {
+              let edge = Edge(nextNode, v)
+              assert(graph.contains(edge: edge))
+              seenEdges.insert(edge)
+              assert(contains(edge: edge))
+              assert(isOuter(vertex: v) != isOuter(vertex: nextNode))
+              searchNodes.insert(v)
+            }
           }
-          for v in nodeChildren {
-            let edge = Edge(nextNode, v)
-            assert(graph.contains(edge: edge))
-            seenEdges.insert(edge)
-            assert(contains(edge: edge))
-            assert(isOuter(vertex: v) != isOuter(vertex: nextNode))
-            searchNodes.insert(v)
-          }
-        }
-        // Make sure `edges` has no extra edges.
-        assert(
-          seenEdges == treeGraph.edgeSet,
-          "saw \(seenEdges.count) edges, but recorded a total of \(treeGraph.edgeSet.count)"
-        )
+          // Make sure `edges` has no extra edges.
+          assert(
+            seenEdges == treeGraph.edgeSet,
+            "saw \(seenEdges.count) edges, but recorded a total of \(treeGraph.edgeSet.count)"
+          )
+        #endif
       }
 
     }
 
+    // Initial problem state before collapsing blossoms.
+    // Useful for lifting edges during blossom expansion.
     let baseGraph: Graph<Vertex>
     let baseWeights: [Edge<Vertex>: W]
+
     var graph: Graph<Vertex>
     var edgeWeights: [Edge<Vertex>: W]
     var tightEdges: Set<Edge<Vertex>> = []
@@ -583,28 +588,27 @@ extension Graph {
         }
       )
       baseWeights = edgeWeights
-      let maxWeight = self.edgeWeights.values.reduce(0, max)
 
-      // Make sure we don't violate the constraints.
+      // Make sure we don't violate the constraints at init.
+      let maxWeight = self.edgeWeights.values.reduce(0, max)
       for v in vertMap.values {
         v.weight = maxWeight
       }
     }
 
-    /// List all of the exposed vertices.
-    func exposed() -> Set<Vertex> {
-      graph.vertices.subtracting(Set(matching.flatMap { $0.vertices }))
+    func positiveExposed() -> Set<Vertex> {
+      graph.vertices.subtracting(Set(matching.flatMap { $0.vertices })).filter { $0.weight > 0 }
     }
 
     func buildNextTree() -> Bool {
-      var otherExposed = exposed()
-      let availableRoots = otherExposed.filter { $0.weight > 0 }
-      guard let root = availableRoots.first else {
+      guard let root = positiveExposed().first else {
         return false
       }
-      otherExposed.remove(root)
 
       let tree = Tree(root: root)
+
+      // Queue of unmatched tight edges that touch outer vertices
+      // of the current tree.
       var queue = Set<Edge<Vertex>>()
 
       func populateQueueFor(outer: Vertex) {
@@ -615,23 +619,34 @@ extension Graph {
         }
       }
 
-      func populateQueue() {
-        for v in tree.outerAndInner().outer {
-          populateQueueFor(outer: v)
-        }
+      for v in tree.outerAndInner().outer {
+        populateQueueFor(outer: v)
       }
-
-      populateQueue()
 
       while true {
         guard let edge = queue.popFirst() else {
           // Hungarian update
           let update = planHungarianUpdate(tree: tree)
-          performHungarianUpdate(tree: tree, update: update)
+          let zeroOuter = performHungarianUpdate(tree: tree, update: update)
           if update.requiresNewTree {
             return true
           }
-          populateQueue()
+
+          for outer in zeroOuter {
+            if outer != tree.root {
+              // This is now an augmenting path ending at a zero-weight outer vertex.
+              let path = tree.trace(from: tree.root, to: outer)
+              assert(path.count % 2 == 1)
+              flipAugmentingPath(path)
+              return true
+            }
+          }
+
+          for edge in update.tighten {
+            assert(!matching.contains(edge) && tightEdges.contains(edge))
+            queue.insert(edge)
+          }
+
           continue
         }
 
@@ -651,9 +666,7 @@ extension Graph {
           let blossom = Blossom(vertices: blossomVertices)
           let blossomVertex = collapse(blossom: blossom)
           tree.collapseInnerBlossom(vertex: blossomVertex)
-          #if DEBUG
-            tree.assertTreeValid(graph: graph, matching: matching)
-          #endif
+          tree.assertTreeValid(graph: graph, matching: matching)
 
           assert(tree.isOuter(vertex: blossomVertex))
 
@@ -692,9 +705,7 @@ extension Graph {
           assert(!tree.contains(vertex: newOuter))
           tree.insert(existing: oldOuter, new: newInner)
           tree.insert(existing: newInner, new: newOuter)
-          #if DEBUG
-            tree.assertTreeValid(graph: graph, matching: matching)
-          #endif
+          tree.assertTreeValid(graph: graph, matching: matching)
 
           if newOuter.weight <= 0 {
             // This is an augmenting path ending at a zero-weight outer vertex.
@@ -779,16 +790,24 @@ extension Graph {
       return result!
     }
 
-    func performHungarianUpdate(tree: Tree, update: HungarianUpdate) {
+    /// Adjust vertex weights, potentially tightening edges or dropping
+    /// vertices to zero.
+    ///
+    /// Returns all vertices that were set to zero.
+    func performHungarianUpdate(tree: Tree, update: HungarianUpdate) -> Set<Vertex> {
       let (outer, inner) = tree.outerAndInner()
       assert(
         outer.count == inner.count + 1, "outer.count=\(outer.count) inner.count=\(inner.count)")
 
+      var zeroVerts = Set<Vertex>()
       for v in outer {
         if update.reduceToZero.contains(v) {
           v.weight = 0
         } else {
           v.weight = max(0, v.weight - update.delta)
+        }
+        if v.weight == 0 {
+          zeroVerts.insert(v)
         }
       }
 
@@ -810,10 +829,10 @@ extension Graph {
       if let blossomVertex = update.unfoldBlossom {
         expand(vertex: blossomVertex)
         tree.expandInnerBlossom(vertex: blossomVertex, tightEdges: tightEdges)
-        #if DEBUG
-          tree.assertTreeValid(graph: graph, matching: matching)
-        #endif
+        tree.assertTreeValid(graph: graph, matching: matching)
       }
+
+      return zeroVerts
     }
 
     func tighten(edge: Edge<Vertex>) {
@@ -875,11 +894,12 @@ extension Graph {
     func expand(vertex: Vertex) {
       let blossom = vertex.blossom!
 
+      let neighbors = graph.neighbors(vertex: vertex)
       graph.remove(vertex: vertex)
       for v in blossom.vertices {
         graph.insert(vertex: v)
       }
-      for newEdge in liftEdgesFromBaseGraph() {
+      for newEdge in liftEdgesFromBaseGraph(vertices: blossom.vertices + neighbors) {
         edgeWeights[newEdge] = liftEdgeWeight(edge: newEdge)!
       }
 
@@ -922,7 +942,7 @@ extension Graph {
       }
     }
 
-    func liftEdgesFromBaseGraph() -> Set<Edge<Vertex>> {
+    func liftEdgesFromBaseGraph<C>(vertices: C) -> Set<Edge<Vertex>> where C: Collection<Vertex> {
       var baseToCurrent = [Vertex: Vertex]()
       func explore(vertex: Vertex, current: Vertex) {
         if let blossom = vertex.blossom {
@@ -933,12 +953,12 @@ extension Graph {
           baseToCurrent[vertex] = current
         }
       }
-      for v in graph.vertices {
+      for v in vertices {
         explore(vertex: v, current: v)
       }
 
       var result: Set<Edge<Vertex>> = []
-      for edge in baseGraph.edgeSet {
+      for edge in baseGraph.filteringVertices({ baseToCurrent[$0] != nil }).edgeSet {
         let vs = edge.vertices.map { baseToCurrent[$0]! }
         if vs[0] != vs[1] {
           if graph.insertEdge(vs[0], vs[1]) {

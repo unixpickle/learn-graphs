@@ -97,7 +97,7 @@ func testMaxCardMinCostRandom(_ algo: MaxCardMinCostMatchAlgorithm) {
       uniqueKeysWithValues: graph.edgeSet.map { ($0, Double.random(in: 0.0..<1.0)) }
     )
     let expected = graph.maxCardMinCostMatch(algorithm: .bruteForce) { edgeWeights[$0]! }
-    let m = graph.maxCardMinCostMatch(algorithm: algo) { edgeWeights[$0]! }
-    #expect(m == expected)
+    let actual = graph.maxCardMinCostMatch(algorithm: algo) { edgeWeights[$0]! }
+    #expect(actual == expected)
   }
 }
