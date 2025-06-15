@@ -25,4 +25,15 @@ public struct Edge<V: Hashable>: Hashable {
     precondition(newSet.count == 2, "mapping identified vertices that used to be separate")
     return Edge<V1>(vertices: newSet)
   }
+
+  /// For a vertex v in the edge, get the other vertex.
+  public func other(_ v: V) -> V {
+    let arr = Array(vertices)
+    assert(v == arr[0] || v == arr[1])
+    if arr[0] == v {
+      return arr[1]
+    } else {
+      return arr[0]
+    }
+  }
 }

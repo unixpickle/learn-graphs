@@ -57,6 +57,12 @@ public struct Graph<V: Hashable>: Hashable {
   }
 
   @discardableResult
+  public mutating func remove(edge: Edge<V>) -> Bool {
+    let vs = Array(edge.vertices)
+    return removeEdge(vs[0], vs[1])
+  }
+
+  @discardableResult
   public mutating func removeEdge(_ from: V, _ to: V) -> Bool {
     if adjacencies[from]?.remove(to) != nil {
       adjacencies[to]!.remove(from)
@@ -87,6 +93,31 @@ public struct Graph<V: Hashable>: Hashable {
   public mutating func insertEdge(_ edge: Edge<V>) -> Bool {
     let items = Array(edge.vertices)
     return insertEdge(items[0], items[1])
+  }
+
+  public func neighbors(vertex: V) -> Set<V> {
+    adjacencies[vertex] ?? Set()
+  }
+
+  public func edgesAt(vertex: V) -> Set<Edge<V>> {
+    return Set((adjacencies[vertex] ?? []).map { Edge($0, vertex) })
+  }
+
+  public func edgesAt<C>(vertices: C) -> Set<Edge<V>> where C: Collection<V> {
+    return Set(vertices.flatMap { edgesAt(vertex: $0) })
+  }
+
+  public func contains(edge: Edge<V>) -> Bool {
+    let vs = Array(edge.vertices)
+    if let a = adjacencies[vs[0]], a.contains(vs[1]) {
+      return true
+    } else {
+      return false
+    }
+  }
+
+  public func contains(vertex: V) -> Bool {
+    vertices.contains(vertex)
   }
 
 }

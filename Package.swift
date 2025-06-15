@@ -24,5 +24,11 @@ let package = Package(
         .enableExperimentalFeature("Testing")
       ]
     ),
+    .executableTarget(
+      name: "LearnGraphsRunTest",
+      dependencies: [
+        "LearnGraphs"
+      ]
+    ),
   ]
 )
