@@ -28,6 +28,9 @@ let package = Package(
       name: "TimeMatchings",
       dependencies: [
         "LearnGraphs"
+      ],
+      exclude: [
+        "timings.png"
       ]
     ),
   ]

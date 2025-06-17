@@ -161,7 +161,7 @@ extension Graph {
       newCurrent.insert(nextEdge)
       var newRemaining = remaining
       for edge in remaining {
-        if !edge.vertices.intersection(nextEdge.vertices).isEmpty {
+        if !edge.vertices.isDisjoint(with: nextEdge.vertices) {
           newRemaining.remove(edge)
         }
       }
@@ -269,7 +269,6 @@ extension Graph {
       /// be attached to expand the edge from the collapsed blossom.
       func adjacentToInterior(
         graph: Graph<Vertex>,
-        tightEdges: Set<Edge<Vertex>>,
         edgeWeights: [Edge<Vertex>: W]
       ) -> [Vertex: Set<Vertex>] {
         assert(
@@ -279,32 +278,21 @@ extension Graph {
         let vertexSet = Set(vertices)
         var adjToInterior = [Vertex: Set<Vertex>]()
         var minEdgeSlack = [Vertex: W]()
-        var minEdgeIsTight = [Vertex: Bool]()
         for e in adjacentEdges(graph: graph) {
           let blossomVertex = e.vertices.filter { vertexSet.contains($0) }.first!
           let otherVertex = e.other(blossomVertex)
           let newSlack = blossomVertex.weight + otherVertex.weight - edgeWeights[e]!
-          let newIsTight = tightEdges.contains(e)
 
           let (isBetter, isEqual) =
-            if let existingSlack = minEdgeSlack[otherVertex],
-              let existingIsTight = minEdgeIsTight[otherVertex]
-            {
-              if newIsTight {
-                (isBetter: !existingIsTight, isEqual: existingIsTight)
-              } else {
-                (
-                  isBetter: !existingIsTight && (newSlack < existingSlack),
-                  isEqual: !existingIsTight && (newSlack == existingSlack)
-                )
-              }
+            if let existingSlack = minEdgeSlack[otherVertex] {
+              (newSlack < existingSlack, newSlack == existingSlack)
             } else {
               (true, false)
             }
+
           if isBetter {
             adjToInterior[otherVertex] = [blossomVertex]
             minEdgeSlack[otherVertex] = newSlack
-            minEdgeIsTight[otherVertex] = newIsTight
           } else if isEqual {
             adjToInterior[otherVertex]!.insert(blossomVertex)
           }
@@ -619,9 +607,7 @@ extension Graph {
         }
       }
 
-      for v in tree.outerAndInner().outer {
-        populateQueueFor(outer: v)
-      }
+      populateQueueFor(outer: root)
 
       while true {
         guard let edge = queue.popFirst() else {
@@ -692,8 +678,7 @@ extension Graph {
           assert(containedVertices.count == 1)
           let oldOuter = containedVertices.first!
           let newInner = edge.other(oldOuter)
-          guard let followingMatched = matching.filter({ $0.vertices.contains(newInner) }).first
-          else {
+          guard let followingMatched = graph.edgesAt(vertex: newInner).filter({ matching.contains($0) }).first else {
             // This is an augmenting path ending in an exposed inner vertex.
             tree.insert(existing: oldOuter, new: newInner)
             let path = tree.trace(from: tree.root, to: newInner)
@@ -846,11 +831,7 @@ extension Graph {
     func collapse(blossom: Blossom) -> Vertex {
       let blossomVertex = Vertex(weight: blossom.minWeight, blossom: blossom)
       let oldEdges = Array(blossom.adjacentEdges(graph: graph))
-      let adjMapping = blossom.adjacentToInterior(
-        graph: graph,
-        tightEdges: tightEdges,
-        edgeWeights: edgeWeights
-      )
+      let adjMapping = blossom.adjacentToInterior(graph: graph, edgeWeights: edgeWeights)
       let adjacentVertices = oldEdges.flatMap { $0.vertices }.filter {
         !blossom.vertexSet.contains($0)
       }
@@ -903,11 +884,7 @@ extension Graph {
         edgeWeights[newEdge] = liftEdgeWeight(edge: newEdge)!
       }
 
-      let adjMapping = blossom.adjacentToInterior(
-        graph: graph,
-        tightEdges: .init(),  // use numerically tightest edge
-        edgeWeights: edgeWeights
-      )
+      let adjMapping = blossom.adjacentToInterior(graph: graph, edgeWeights: edgeWeights)
 
       // Eliminate edge weights
       for adj in adjMapping.keys {
