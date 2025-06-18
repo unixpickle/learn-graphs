@@ -330,10 +330,6 @@ extension Graph {
       var reduceToZero: Set<Vertex>
       var tighten: Set<Edge<Vertex>>
       var unfoldBlossom: Vertex?
-
-      var requiresNewTree: Bool {
-        unfoldBlossom == nil
-      }
     }
 
     class Tree {
@@ -341,6 +337,10 @@ extension Graph {
       private var treeGraph: Graph<Vertex>
       private var isOuterMap: [Vertex: Bool]
       private var parents: [Vertex: Vertex] = [:]
+
+      var vertexCount: Int {
+        treeGraph.vertices.count
+      }
 
       init(root: Vertex) {
         self.treeGraph = Graph<Vertex>(vertices: [root])
@@ -611,29 +611,49 @@ extension Graph {
 
       while true {
         guard let edge = queue.popFirst() else {
-          // Hungarian update
           let update = planHungarianUpdate(tree: tree)
           let zeroOuter = performHungarianUpdate(tree: tree, update: update)
-          if update.requiresNewTree {
+
+          if zeroOuter.contains(tree.root) {
             return true
           }
 
-          for outer in zeroOuter {
-            if outer != tree.root {
-              // This is now an augmenting path ending at a zero-weight outer vertex.
-              let path = tree.trace(from: tree.root, to: outer)
-              assert(path.count % 2 == 1)
-              flipAugmentingPath(path)
-              return true
+          if let outer = zeroOuter.first {
+            // This is now an augmenting path ending at a zero-weight outer vertex.
+            let path = tree.trace(from: tree.root, to: outer)
+            assert(path.count % 2 == 1)
+            flipAugmentingPath(path)
+            return true
+          }
+
+          func exploreTightened() {
+            for edge in update.tighten {
+              assert(!matching.contains(edge) && tightEdges.contains(edge))
+              queue.insert(edge)
             }
           }
 
-          for edge in update.tighten {
-            assert(!matching.contains(edge) && tightEdges.contains(edge))
-            queue.insert(edge)
+          if update.unfoldBlossom != nil {
+            // For some reason, even if we expanded a blossom, I did not find it
+            // necessary to add edges from the new expanded outer vertices in the
+            // tree to the search queue.
+            exploreTightened()
+            continue
           }
 
-          continue
+          if tree.vertexCount > 3 {
+            // Abandon the tree if it's already grown and we just tightened edges.
+            //
+            // For some reason, this reduce variance in the time that it takes to
+            // find matchings in small random sparse graphs.
+            //
+            // If we raise the above threshold to something more than 3, such as 10,
+            // it reduces average time performance for medium-sized dense graphs.
+            return true
+          } else {
+            exploreTightened()
+            continue
+          }
         }
 
         assert(tightEdges.contains(edge))
@@ -678,7 +698,10 @@ extension Graph {
           assert(containedVertices.count == 1)
           let oldOuter = containedVertices.first!
           let newInner = edge.other(oldOuter)
-          guard let followingMatched = graph.edgesAt(vertex: newInner).filter({ matching.contains($0) }).first else {
+          guard
+            let followingMatched = graph.edgesAt(vertex: newInner).filter({ matching.contains($0) })
+              .first
+          else {
             // This is an augmenting path ending in an exposed inner vertex.
             tree.insert(existing: oldOuter, new: newInner)
             let path = tree.trace(from: tree.root, to: newInner)
@@ -782,7 +805,9 @@ extension Graph {
     func performHungarianUpdate(tree: Tree, update: HungarianUpdate) -> Set<Vertex> {
       let (outer, inner) = tree.outerAndInner()
       assert(
-        outer.count == inner.count + 1, "outer.count=\(outer.count) inner.count=\(inner.count)")
+        outer.count == inner.count + 1,
+        "tree is not a planted tree: outer.count=\(outer.count) inner.count=\(inner.count)"
+      )
 
       var zeroVerts = Set<Vertex>()
       for v in outer {
