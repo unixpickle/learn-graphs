@@ -25,7 +25,7 @@ public struct Graph<V: Hashable>: Hashable {
     self.vertices = Set(vertices)
     self.adjacencies = [:]
     for edge in edges {
-      self.insertEdge(edge)
+      self.insert(edge: edge)
     }
   }
 
@@ -90,7 +90,7 @@ public struct Graph<V: Hashable>: Hashable {
   }
 
   @discardableResult
-  public mutating func insertEdge(_ edge: Edge<V>) -> Bool {
+  public mutating func insert(edge: Edge<V>) -> Bool {
     let items = Array(edge.vertices)
     return insertEdge(items[0], items[1])
   }

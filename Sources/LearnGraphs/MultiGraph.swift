@@ -34,8 +34,12 @@ public struct MultiGraph<V: Hashable>: Hashable {
     self.vertices = Set(vertices)
     self.adjacencies = [:]
     for edge in edges {
-      self.insertEdge(edge)
+      self.insert(edge: edge)
     }
+  }
+
+  public init(_ graph: Graph<V>) {
+    self.init(vertices: graph.vertices, edges: graph.edgeSet)
   }
 
   public func map<V1>(_ fn: (V) -> V1) -> MultiGraph<V1> {
@@ -43,7 +47,7 @@ public struct MultiGraph<V: Hashable>: Hashable {
     for (edge, count) in edges {
       let vs = edge.vertices.map(fn)
       assert(vs[0] != vs[1], "edge is collapsed into a vertex and itself")
-      result.insertEdge(Edge(vs[0], vs[1]), count: count)
+      result.insert(edge: Edge(vs[0], vs[1]), count: count)
     }
     return result
   }
@@ -65,7 +69,7 @@ public struct MultiGraph<V: Hashable>: Hashable {
   }
 
   @discardableResult
-  public mutating func remove(edge: Edge<V>, count: UInt) -> UInt {
+  public mutating func remove(edge: Edge<V>, count: UInt = 1) -> UInt {
     let vs = Array(edge.vertices)
     return removeEdge(vs[0], vs[1], count: count)
   }
@@ -109,7 +113,7 @@ public struct MultiGraph<V: Hashable>: Hashable {
     adjacencies[to]![from, default: 0] += count
   }
 
-  public mutating func insertEdge(_ edge: Edge<V>, count: UInt = 1) {
+  public mutating func insert(edge: Edge<V>, count: UInt = 1) {
     let items = Array(edge.vertices)
     return insertEdge(items[0], items[1], count: count)
   }

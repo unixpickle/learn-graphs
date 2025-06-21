@@ -63,10 +63,10 @@ extension Graph {
 
     var result = Graph(vertices: vertices)
     for edge in subTree.edgeSet {
-      result.insertEdge(minCostConnections[edge]!.edge)
+      result.insert(edge: minCostConnections[edge]!.edge)
     }
     for edge in contractEdges {
-      result.insertEdge(edge)
+      result.insert(edge: edge)
     }
     return result
   }

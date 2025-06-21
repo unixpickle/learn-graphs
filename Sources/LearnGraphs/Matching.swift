@@ -114,7 +114,7 @@ extension Graph {
   /// Compute a maximum cardinality matching while minimizing the total weight
   /// of the matching.
   public func maxCardMinCostMatch<C: MatchingWeight>(
-    algorithm: MaxCardMinCostMatchAlgorithm = .bruteForce,
+    algorithm: MaxCardMinCostMatchAlgorithm = .blossom,
     edgeCost: (Edge<V>) -> C
   ) -> Set<Edge<V>> {
     switch algorithm {
