@@ -33,5 +33,14 @@ let package = Package(
         "timings.png"
       ]
     ),
+    .executableTarget(
+      name: "PlotChristofides",
+      dependencies: [
+        "LearnGraphs"
+      ],
+      exclude: [
+        "plot.png"
+      ]
+    ),
   ]
 )
