@@ -90,6 +90,18 @@ internal struct PriorityQueue<T: Hashable, P: Comparable> {
     downHeap(index[item]!)
   }
 
+  func contains(_ x: T) -> Bool {
+    index[x] != nil
+  }
+
+  func currentPriority(for f: T) -> P? {
+    if let idx = index[f] {
+      priority[idx]
+    } else {
+      nil
+    }
+  }
+
   private mutating func downHeap(_ idx: Int) {
     let (child1, child2) = (idx * 2 + 1, idx * 2 + 2)
     if child1 >= count {

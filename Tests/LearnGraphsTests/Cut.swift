@@ -40,3 +40,18 @@ func testCutSimple() {
   #expect(keptPart == Graph(vertices: [2, 3, 4], edges: [Edge(3, 4)]))
   #expect(cutSet == [Edge(1, 2)])
 }
+
+@Test
+func testMinCostCutComponents() {
+  var graph = Graph(random: 0..<20, edgeCount: 20)
+  while graph.components().count != 2 {
+    graph = Graph(random: 0..<20, edgeCount: 20)
+  }
+
+  let components = graph.components()
+  let (set1, set2, cost) = graph.minCostCut { _ in 1 }
+  #expect(cost == 0)
+  #expect(
+    Set(components) == Set([set1, set2].map { s in graph.filteringVertices { s.contains($0) } })
+  )
+}
