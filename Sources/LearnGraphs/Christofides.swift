@@ -14,7 +14,7 @@ extension Graph {
     } else if vertices.count == 1 {
       return [vertices.first!]
     }
-    assert(edgeCount == (vertices.count - 1) * vertices.count / 2, "graph must be dense")
+    assert(isFullyConnected, "graph must be dense")
     let tree = minimumSpanningTree(algorithm: spanningAlgorithm, edgeCost: edgeCost)
     let odd: Set = tree.vertices.filter { tree.neighbors(vertex: $0).count % 2 == 1 }
     let oddSubgraph = filteringVertices { odd.contains($0) }

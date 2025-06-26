@@ -1,5 +1,12 @@
 extension Graph {
 
+  /// Get the set of edges separating the given vertices from the rest of the
+  /// graph.
+  public func cutSet<C>(vertices vs: C) -> Set<Edge<V>> where C: Collection<V> {
+    var g = self
+    return g.cut(vertices: vs).1
+  }
+
   /// Cut the graph into a subgraph without the given vertices, and another
   /// subgraph with the given vertices (which is returned).
   ///
@@ -108,8 +115,9 @@ extension Graph {
         optimalCutCost = lastNode.priority
         optimalCut = lastNode.item.vertices
       }
+      assert(queue.pop() == nil)
 
-      if stage + 1 < vertices.count {
+      if stage + 1 == vertices.count {
         break
       }
 

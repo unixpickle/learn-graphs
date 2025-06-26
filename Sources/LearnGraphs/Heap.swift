@@ -76,6 +76,7 @@ internal struct PriorityQueue<T: Hashable, P: Comparable> {
 
     heap[0] = last
     priority[0] = lastPri
+    index[last] = 0
     downHeap(0)
 
     return (item: result, priority: resultPri)

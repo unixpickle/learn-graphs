@@ -43,15 +43,29 @@ func testCutSimple() {
 
 @Test
 func testMinCostCutComponents() {
-  var graph = Graph(random: 0..<20, edgeCount: 20)
-  while graph.components().count != 2 {
-    graph = Graph(random: 0..<20, edgeCount: 20)
-  }
+  for _ in 0..<10 {
+    var graph = Graph(random: 0..<20, edgeCount: 20)
+    while graph.components().count != 2 {
+      graph = Graph(random: 0..<20, edgeCount: 20)
+    }
 
-  let components = graph.components()
-  let (set1, set2, cost) = graph.minCostCut { _ in 1 }
-  #expect(cost == 0)
-  #expect(
-    Set(components) == Set([set1, set2].map { s in graph.filteringVertices { s.contains($0) } })
-  )
+    let components = graph.components()
+    let (set1, set2, cost) = graph.minCostCut { _ in 1 }
+    #expect(cost == 0)
+    #expect(
+      Set(components) == Set([set1, set2].map { s in graph.filteringVertices { s.contains($0) } })
+    )
+
+    let fullGraph = Graph(
+      vertices: graph.vertices,
+      edges: graph.vertices.flatMap { x in graph.vertices.filter { $0 != x }.map { y in Edge(x, y) }
+      }
+    )
+    let (set1A, set2A, costA) = fullGraph.minCostCut { edge in graph.contains(edge: edge) ? 1 : 0 }
+    #expect(costA == 0)
+    #expect(
+      Set(components)
+        == Set([set1A, set2A].map { s in graph.filteringVertices { s.contains($0) } })
+    )
+  }
 }

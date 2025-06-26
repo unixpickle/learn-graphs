@@ -11,6 +11,10 @@ public struct Graph<V: Hashable>: Hashable {
     adjacencies.values.reduce(0, { $0 + $1.count }) / 2
   }
 
+  public var isFullyConnected: Bool {
+    edgeCount == (vertices.count - 1) * vertices.count / 2
+  }
+
   public init() {
     self.vertices = .init()
     self.adjacencies = [:]
