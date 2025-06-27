@@ -34,7 +34,7 @@ let package = Package(
       ]
     ),
     .executableTarget(
-      name: "PlotChristofides",
+      name: "PlotTSP",
       dependencies: [
         "LearnGraphs"
       ],

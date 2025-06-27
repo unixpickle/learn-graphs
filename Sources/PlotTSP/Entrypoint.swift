@@ -153,10 +153,24 @@ for (i, x) in coordinates.enumerated() {
     graph.insertEdge(x, y)
   }
 }
-let path = graph.christofides(edgeCost: edgeCost)
+
+print("running Christofides...")
+var path = graph.christofides(edgeCost: edgeCost)
 
 drawTSP(
   points: coordinates,
   tour: path.map { coordinates.firstIndex(of: $0)! },
   outputURL: URL(fileURLWithPath: "plot.png")
 )
+
+print("running branch-and-bound...")
+path = graph.branchAndBoundTSP(edgeCost: edgeCost) { msg in
+  print("[solve] \(msg)")
+}
+
+drawTSP(
+  points: coordinates,
+  tour: path.map { coordinates.firstIndex(of: $0)! },
+  outputURL: URL(fileURLWithPath: "plot_branchandbound.png")
+)
+

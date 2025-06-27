@@ -6,7 +6,9 @@ extension Graph {
   /// The graph must be fully connected.
   ///
   /// The path will always begin and end at the same place.
-  public func branchAndBoundTSP(edgeCost: (Edge<V>) -> Double) -> [V] {
+  public func branchAndBoundTSP(edgeCost: (Edge<V>) -> Double, logFn: ((String) -> Void)? = nil)
+    -> [V]
+  {
     if vertices.count == 0 {
       return []
     } else if vertices.count == 1 {
@@ -41,7 +43,8 @@ extension Graph {
       edgeCost: edgeCost,
       constraints: constraints,
       best: &best,
-      bestCost: &bestCost
+      bestCost: &bestCost,
+      logFn: logFn
     )
 
     assert(best != nil, "a solution should have been found; did you pass invalid weights?")
@@ -60,10 +63,29 @@ extension Graph {
     return result
   }
 
+  private func findBadCuts(edgeCost: (Edge<V>) -> Double) -> [Set<V>] {
+    let (cutVerts, _, cutCost) = minCostCut(edgeCost: edgeCost)
+    if cutCost >= 2 - Epsilon {
+      return []
+    }
+    if cutCost > Epsilon {
+      return [cutVerts]
+    }
+    // We have a disjoint component, so we should explore sub-cuts.
+    var g1 = self
+    let (g2, _) = g1.cut(vertices: cutVerts)
+    return [cutVerts] + g1.findBadCuts(edgeCost: edgeCost) + g2.findBadCuts(edgeCost: edgeCost)
+  }
+
   private func solveWithoutCycles(
-    edges: [Edge<V>], edgeCost: [Double], constraints: inout [Simplex.Constraint],
-    existingEdges: Set<Edge<V>> = [], bound: Double = 0.0
+    edges: [Edge<V>],
+    edgeCost: [Double],
+    constraints: inout [Simplex.Constraint],
+    logFn: ((String) -> Void)?,
+    existingEdges: Set<Edge<V>> = [],
+    bound: Double = 0.0
   ) -> [Double]? {
+    logFn?("solving with \(constraints.count) initial constraints")
     let extra = constraints.first!.coeffs.count - edgeCost.count
     var objective: [Double] = edgeCost + [Double](repeating: 0, count: extra)
     let edgeToIdx = Dictionary(uniqueKeysWithValues: edges.enumerated().map { ($0.1, $0.0) })
@@ -78,40 +100,47 @@ extension Graph {
           (solution, cost)
         }
       if cost > bound {
+        logFn?("cost \(cost) is higher than bound \(bound)")
         return nil
       }
       assert(solution.count >= edges.count)
-      let (cutVerts, _, cutCost) = minCostCut { edge in
+
+      let cuts = findBadCuts { edge in
         if let idx = edgeToIdx[edge] {
           solution[idx]
         } else {
           existingEdges.contains(edge) ? 1.0 : 0.0
         }
       }
-      if cutCost >= 2 - Epsilon {
+      if cuts.isEmpty {
+        logFn?("found solution without cycles")
         return solution
       }
 
-      // Add a constraint that the cut cost cannot go under 2
-      let slackVarIdx = objective.count
-      objective.append(0)
-      for i in 0..<constraints.count {
-        let old = constraints[i]
-        constraints[i] = .init(coeffs: old.coeffs + [0], equals: old.equals)
-      }
+      logFn?("found \(cuts.count) bad cuts to add constraints for")
 
-      var coeffs = [Double](repeating: 0, count: slackVarIdx + 1)
-      var equals = 2.0
-      for cutEdge in cutSet(vertices: cutVerts) {
-        if let idx = edgeToIdx[cutEdge] {
-          coeffs[idx] = 1.0
-        } else if existingEdges.contains(cutEdge) {
-          // We have to remove this constant edge from the constraint.
-          equals -= 1
+      for cutVerts in cuts {
+        // Add a constraint that the cut cost cannot go under 2
+        let slackVarIdx = objective.count
+        objective.append(0)
+        for i in 0..<constraints.count {
+          let old = constraints[i]
+          constraints[i] = .init(coeffs: old.coeffs + [0], equals: old.equals)
         }
+
+        var coeffs = [Double](repeating: 0, count: slackVarIdx + 1)
+        var equals = 2.0
+        for cutEdge in cutSet(vertices: cutVerts) {
+          if let idx = edgeToIdx[cutEdge] {
+            coeffs[idx] = 1.0
+          } else if existingEdges.contains(cutEdge) {
+            // We have to remove this constant edge from the constraint.
+            equals -= 1
+          }
+        }
+        coeffs[slackVarIdx] = -1
+        constraints.append(.init(coeffs: coeffs, equals: equals))
       }
-      coeffs[slackVarIdx] = -1
-      constraints.append(.init(coeffs: coeffs, equals: equals))
     }
   }
 
@@ -121,6 +150,7 @@ extension Graph {
     constraints: [Simplex.Constraint],
     best: inout Set<Edge<V>>?,
     bestCost: inout Double?,
+    logFn: ((String) -> Void)?,
     existingEdges: Set<Edge<V>> = [],
     existingCost: Double = 0.0
   ) {
@@ -128,8 +158,13 @@ extension Graph {
 
     guard
       let fullSolution = solveWithoutCycles(
-        edges: edges, edgeCost: edgeCost, constraints: &constraints, existingEdges: existingEdges,
-        bound: (bestCost ?? Double.infinity) + existingCost)
+        edges: edges,
+        edgeCost: edgeCost,
+        constraints: &constraints,
+        logFn: logFn,
+        existingEdges: existingEdges,
+        bound: (bestCost ?? Double.infinity) - existingCost
+      )
     else {
       return
     }
@@ -159,6 +194,7 @@ extension Graph {
     }
 
     // TODO: sort non-binary indices by the ones closest to 0 or 1
+    logFn?("branching on non-binary variables: \(nonBinaryIndices)")
     for idx in nonBinaryIndices {
       let edge = edges[idx]
       var newEdges = edges
@@ -180,10 +216,12 @@ extension Graph {
           constraints: newConstraints,
           best: &best,
           bestCost: &bestCost,
+          logFn: logFn,
           existingEdges: newExistingEdges,
           existingCost: newExistingCost
         )
       }
     }
+    logFn?("completed branching for \(nonBinaryIndices)")
   }
 }
