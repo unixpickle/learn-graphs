@@ -2,8 +2,8 @@ import Testing
 
 @testable import LearnGraphs
 
-@Test
-func testSimplexOneSolution2D() {
+@Test(arguments: [Simplex.PivotRule.bland, .greedy])
+func testSimplexOneSolution2D(pivotRule: Simplex.PivotRule) {
   // There is exactly one solution to this system.
   let constraints: [Simplex.Constraint] = [
     .init(coeffs: [-3, 4], equals: 5),
@@ -11,7 +11,11 @@ func testSimplexOneSolution2D() {
   ]
 
   for objective in [[1.0, 1.0], [-1.0, -1.0], [0.0, 0.0]] {
-    let solution = Simplex.minimize(objective: objective, constraints: constraints)
+    let solution = Simplex.minimize(
+      objective: objective,
+      constraints: constraints,
+      pivotRule: pivotRule
+    )
     #expect(
       solutionsAreClose(
         solution, .solved(solution: [7, 6.5], cost: 7 * objective[0] + 6.5 * objective[1])),
@@ -19,8 +23,8 @@ func testSimplexOneSolution2D() {
   }
 }
 
-@Test
-func testSimplexInfeasible2D() {
+@Test(arguments: [Simplex.PivotRule.bland, .greedy])
+func testSimplexInfeasible2D(pivotRule: Simplex.PivotRule) {
   // There is a solution here, but it requires x < 0.
   let constraints: [Simplex.Constraint] = [
     .init(coeffs: [3, 4], equals: 5),
@@ -28,48 +32,68 @@ func testSimplexInfeasible2D() {
   ]
 
   for objective in [[1.0, 1.0], [-1.0, -1.0], [0.0, 0.0]] {
-    let solution = Simplex.minimize(objective: objective, constraints: constraints)
+    let solution = Simplex.minimize(
+      objective: objective,
+      constraints: constraints,
+      pivotRule: pivotRule
+    )
     #expect(solutionsAreClose(solution, .infeasible), "\(solution)")
   }
 }
 
-@Test
-func testSimplexMaybeUnbounded() {
+@Test(arguments: [Simplex.PivotRule.bland, .greedy])
+func testSimplexMaybeUnbounded(pivotRule: Simplex.PivotRule) {
   // There are infinite solutions along a line following y = x - 3
   let constraints: [Simplex.Constraint] = [
     .init(coeffs: [1, -1], equals: 3)
   ]
 
-  var solution = Simplex.minimize(objective: [1, 1], constraints: constraints)
+  var solution = Simplex.minimize(
+    objective: [1, 1],
+    constraints: constraints,
+    pivotRule: pivotRule
+  )
   #expect(solutionsAreClose(solution, .solved(solution: [3, 0], cost: 3)), "\(solution)")
 
-  solution = Simplex.minimize(objective: [-1, -1], constraints: constraints)
+  solution = Simplex.minimize(objective: [-1, -1], constraints: constraints, pivotRule: pivotRule)
   #expect(solutionsAreClose(solution, .unbounded), "\(solution)")
 
-  solution = Simplex.minimize(objective: [-1, 2], constraints: constraints)
+  solution = Simplex.minimize(objective: [-1, 2], constraints: constraints, pivotRule: pivotRule)
   #expect(solutionsAreClose(solution, .solved(solution: [3, 0], cost: -3)), "\(solution)")
 }
 
-@Test
-func testSimplexRedundant() {
+@Test(arguments: [Simplex.PivotRule.bland, .greedy])
+func testSimplexRedundant(pivotRule: Simplex.PivotRule) {
   // There are infinite solutions along a line following y = x - 3
   let constraints: [Simplex.Constraint] = [
     .init(coeffs: [1, -1], equals: 3),
     .init(coeffs: [-1, 1], equals: -3),
   ]
 
-  var solution = Simplex.minimize(objective: [1, 1], constraints: constraints)
+  var solution = Simplex.minimize(
+    objective: [1, 1],
+    constraints: constraints,
+    pivotRule: pivotRule
+  )
   #expect(solutionsAreClose(solution, .solved(solution: [3, 0], cost: 3)), "\(solution)")
 
-  solution = Simplex.minimize(objective: [-1, -1], constraints: constraints)
+  solution = Simplex.minimize(
+    objective: [-1, -1],
+    constraints: constraints,
+    pivotRule: pivotRule
+  )
   #expect(solutionsAreClose(solution, .unbounded), "\(solution)")
 
-  solution = Simplex.minimize(objective: [-1, 2], constraints: constraints)
+  solution = Simplex.minimize(
+    objective: [-1, 2],
+    constraints: constraints,
+    pivotRule: pivotRule
+  )
   #expect(solutionsAreClose(solution, .solved(solution: [3, 0], cost: -3)), "\(solution)")
 }
 
-@Test
-func testSimplexClosedPolytope() {
+@Test(arguments: [Simplex.PivotRule.bland, .greedy])
+func testSimplexClosedPolytope(pivotRule: Simplex.PivotRule) {
   // Create a system of four inequalities that encloses a quadrilateral in the
   // x-y plane.
   let constraints: [Simplex.Constraint] = [
@@ -93,7 +117,11 @@ func testSimplexClosedPolytope() {
     let atEachVertex = vertices.map { $0.0 * objective[0] + $0.1 * objective[1] }
     let minCost = atEachVertex.reduce(Double.infinity, min)
     let bestVertex = vertices[atEachVertex.firstIndex(of: minCost)!]
-    let solution = Simplex.minimize(objective: objective, constraints: constraints)
+    let solution = Simplex.minimize(
+      objective: objective,
+      constraints: constraints,
+      pivotRule: pivotRule
+    )
     let ok =
       switch solution {
       case .infeasible:

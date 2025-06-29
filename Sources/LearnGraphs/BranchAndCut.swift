@@ -1,12 +1,12 @@
 private let Epsilon = 1e-5
 
 extension Graph {
-  /// Solve the traveling salesman problem using a branch-and-bound method.
+  /// Solve the traveling salesman problem using a branch-and-cut method.
   ///
   /// The graph must be fully connected.
   ///
   /// The path will always begin and end at the same place.
-  public func branchAndBoundTSP(edgeCost: (Edge<V>) -> Double, logFn: ((String) -> Void)? = nil)
+  public func branchAndCutTSP(edgeCost: (Edge<V>) -> Double, logFn: ((String) -> Void)? = nil)
     -> [V]
   {
     if vertices.count == 0 {
@@ -38,7 +38,7 @@ extension Graph {
 
     var best: Set<Edge<V>>?
     var bestCost: Double? = nil
-    branchAndBound(
+    branchAndCut(
       edges: edges,
       edgeCost: edgeCost,
       constraints: constraints,
@@ -144,7 +144,7 @@ extension Graph {
     }
   }
 
-  private func branchAndBound(
+  private func branchAndCut(
     edges: [Edge<V>],
     edgeCost: [Double],
     constraints: [Simplex.Constraint],
@@ -210,7 +210,7 @@ extension Graph {
           newExistingCost += edgeCost[idx]
         }
         let newConstraints = constraints.map { $0.setting(idx, equalTo: keep ? 1 : 0) }
-        branchAndBound(
+        branchAndCut(
           edges: newEdges,
           edgeCost: newEdgeCost,
           constraints: newConstraints,

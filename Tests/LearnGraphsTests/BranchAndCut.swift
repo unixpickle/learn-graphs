@@ -4,7 +4,7 @@ import Testing
 @testable import LearnGraphs
 
 @Test
-func testBranchAndBound() {
+func testBranchAndCut() {
   struct Point: Hashable {
     let latitude: Double
     let longitude: Double
@@ -60,7 +60,7 @@ func testBranchAndBound() {
       graph.insertEdge(x, y)
     }
   }
-  let path = graph.branchAndBoundTSP(edgeCost: edgeCost)
+  let path = graph.branchAndCutTSP(edgeCost: edgeCost)
   #expect(path.first! == path.last!)
   #expect(Set(path) == Set(coordinates))
   #expect(path.count == coordinates.count + 1)

@@ -39,7 +39,8 @@ let package = Package(
         "LearnGraphs"
       ],
       exclude: [
-        "plot.png"
+        "plot.png",
+        "berlin52.tsp",
       ]
     ),
   ]
