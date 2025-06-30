@@ -1,3 +1,5 @@
+import Accelerate
+
 private let Epsilon: Double = 1e-8
 
 internal class Simplex {
@@ -252,13 +254,27 @@ internal class Simplex {
       let row = basicCols.firstIndex(of: leaving)!
       basicCols[row] = entering
       scale(row: row, by: 1 / self[row, entering])
+
+      let rowValue: [Double] = (0..<cols).map { self[row, $0] }
+      var scalePerRow = [Double](repeating: 0.0, count: rows)
       for i in 0..<rows {
-        if i == row {
-          continue
+        if i != row {
+          scalePerRow[i] = -self[i, entering]
         }
-        add(row: row, to: i, scale: -self[i, entering])
-        assert(abs(self[i, entering]) < Epsilon, "elimination did not work")
       }
+
+      cblas_dger(
+        CblasRowMajor,
+        Int32(rows),  // m
+        Int32(cols),  // n
+        1.0,  // scale for outer product
+        scalePerRow,  // rows vector
+        1,  // stride in rows vector
+        rowValue,  // cols vector
+        1,  // stride in cols vector
+        &values,  // output matrix
+        Int32(cols)  // stride of output matrix
+      )
     }
 
     private mutating func scale(row: Int, by: Double) {
