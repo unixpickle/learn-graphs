@@ -6,6 +6,8 @@ internal class Simplex {
   internal enum PivotRule {
     case greedy
     case bland
+    case devex
+    case greedyThenBland(Int)
   }
 
   internal struct Constraint {
@@ -90,6 +92,13 @@ internal class Simplex {
     var cost: Double {
       -self[-1, -1]
     }
+
+    // Used for greedyThenBland pivot rule
+    var costHistory: [Double] = []
+    var switchedToBland: Bool = false
+
+    // Used for the devex decision rule
+    var devexCoeffs: [Double]? = nil
 
     var solution: [Double] {
       var result = [Double](repeating: 0.0, count: cols - 1)
@@ -195,7 +204,8 @@ internal class Simplex {
       case .unbounded:
         return .unbounded
       case .improvement(let entering, let leaving):
-        pivot(entering: entering, leaving: leaving)
+        pivot(pivotRule: pivotRule, entering: entering, leaving: leaving)
+        costHistory.append(cost)
         return .success
       }
     }
@@ -207,7 +217,7 @@ internal class Simplex {
       }
     }
 
-    private func choosePivot(pivotRule: PivotRule) -> Pivot {
+    private mutating func choosePivot(pivotRule: PivotRule) -> Pivot {
       let entering: Int? =
         switch pivotRule {
         case .bland:
@@ -215,7 +225,34 @@ internal class Simplex {
         case .greedy:
           (0..<(cols - 1))
             .filter { self[-1, $0] < -Epsilon }
-            .min { self[-1, $0] < self[0, $1] }
+            .min { self[-1, $0] < self[-1, $1] }
+        case .devex:
+          {
+            if devexCoeffs == nil {
+              devexCoeffs = [Double](repeating: 1, count: cols - 1)
+            }
+            return (0..<(cols - 1))
+              .filter { self[-1, $0] < -Epsilon }
+              .max {
+                abs(self[-1, $0]) / devexCoeffs![$0].squareRoot() < abs(self[-1, $1])
+                  / devexCoeffs![$1].squareRoot()
+              }
+          }()
+        case .greedyThenBland(let stallStepCount):
+          {
+            if switchedToBland
+              || (costHistory.count > stallStepCount
+                && abs(costHistory[costHistory.count - stallStepCount] - costHistory.last!)
+                  < Epsilon)
+            {
+              switchedToBland = true
+              return (0..<(cols - 1)).first(where: { self[-1, $0] < -Epsilon })
+            } else {
+              return (0..<(cols - 1))
+                .filter { self[-1, $0] < -Epsilon }
+                .min { self[-1, $0] < self[-1, $1] }
+            }
+          }()
         }
 
       guard let enteringCol = entering else {
@@ -250,7 +287,20 @@ internal class Simplex {
       return candidateCol == Int.max ? nil : candidateCol
     }
 
-    private mutating func pivot(entering: Int, leaving: Int) {
+    private mutating func pivot(pivotRule: PivotRule, entering: Int, leaving: Int) {
+      switch pivotRule {
+      case .devex:
+        // Update devex coefficient for entering
+        assert(devexCoeffs != nil, "choosePivot() should have initialized devex coeffs")
+        var newCoeff = 0.0
+        for row in 0..<(rows - 1) {
+          newCoeff += pow(self[row, entering], 2) * devexCoeffs![basicCols[row]]
+        }
+        devexCoeffs![entering] = newCoeff
+      default:
+        ()
+      }
+
       let row = basicCols.firstIndex(of: leaving)!
       basicCols[row] = entering
       scale(row: row, by: 1 / self[row, entering])

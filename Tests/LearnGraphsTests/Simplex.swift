@@ -2,7 +2,7 @@ import Testing
 
 @testable import LearnGraphs
 
-@Test(arguments: [Simplex.PivotRule.bland, .greedy])
+@Test(arguments: [Simplex.PivotRule.bland, .greedy, .greedyThenBland(2), .devex])
 func testSimplexOneSolution2D(pivotRule: Simplex.PivotRule) {
   // There is exactly one solution to this system.
   let constraints: [Simplex.Constraint] = [
@@ -23,7 +23,7 @@ func testSimplexOneSolution2D(pivotRule: Simplex.PivotRule) {
   }
 }
 
-@Test(arguments: [Simplex.PivotRule.bland, .greedy])
+@Test(arguments: [Simplex.PivotRule.bland, .greedy, .greedyThenBland(2), .devex])
 func testSimplexInfeasible2D(pivotRule: Simplex.PivotRule) {
   // There is a solution here, but it requires x < 0.
   let constraints: [Simplex.Constraint] = [
@@ -41,7 +41,7 @@ func testSimplexInfeasible2D(pivotRule: Simplex.PivotRule) {
   }
 }
 
-@Test(arguments: [Simplex.PivotRule.bland, .greedy])
+@Test(arguments: [Simplex.PivotRule.bland, .greedy, .greedyThenBland(2), .devex])
 func testSimplexMaybeUnbounded(pivotRule: Simplex.PivotRule) {
   // There are infinite solutions along a line following y = x - 3
   let constraints: [Simplex.Constraint] = [
@@ -62,7 +62,7 @@ func testSimplexMaybeUnbounded(pivotRule: Simplex.PivotRule) {
   #expect(solutionsAreClose(solution, .solved(solution: [3, 0], cost: -3)), "\(solution)")
 }
 
-@Test(arguments: [Simplex.PivotRule.bland, .greedy])
+@Test(arguments: [Simplex.PivotRule.bland, .greedy, .greedyThenBland(2), .devex])
 func testSimplexRedundant(pivotRule: Simplex.PivotRule) {
   // There are infinite solutions along a line following y = x - 3
   let constraints: [Simplex.Constraint] = [
@@ -92,7 +92,7 @@ func testSimplexRedundant(pivotRule: Simplex.PivotRule) {
   #expect(solutionsAreClose(solution, .solved(solution: [3, 0], cost: -3)), "\(solution)")
 }
 
-@Test(arguments: [Simplex.PivotRule.bland, .greedy])
+@Test(arguments: [Simplex.PivotRule.bland, .greedy, .greedyThenBland(2), .devex])
 func testSimplexClosedPolytope(pivotRule: Simplex.PivotRule) {
   // Create a system of four inequalities that encloses a quadrilateral in the
   // x-y plane.

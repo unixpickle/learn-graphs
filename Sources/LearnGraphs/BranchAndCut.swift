@@ -91,7 +91,11 @@ extension Graph {
     let edgeToIdx = Dictionary(uniqueKeysWithValues: edges.enumerated().map { ($0.1, $0.0) })
     while true {
       let (solution, cost): ([Double], Double) =
-        switch Simplex.minimize(objective: objective, constraints: constraints) {
+        switch Simplex.minimize(
+          objective: objective,
+          constraints: constraints,
+          pivotRule: .greedyThenBland(100)
+        ) {
         case .unbounded:
           fatalError("solution should not be unbounded")
         case .infeasible:
