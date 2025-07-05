@@ -14,7 +14,7 @@ As a faster algorithm, I've implemented Edmund's maximum-weight matching algorit
 
 In the below plot, I time matching algorithms when applied to dense graphs with random edge weights. Each measurement is averaged over three runs with independently randomized edge weights.
 
-![Matching algorithm timing comparison](TimeMatchings/timings.png)
+![Matching algorithm timing comparison](Sources/TimeMatchings/timings.png)
 
 All tests are run on the same machine, for fair comparison.
 
@@ -22,4 +22,4 @@ All tests are run on the same machine, for fair comparison.
 
 I implemented the Christofides algorithm for approximately solving the Traveling Salesman Problem. Here is an example solution for the [berlin52](https://github.com/mastqe/tsplib/blob/master/berlin52.tsp) problem:
 
-![Plot of an approximate TSP solution to the berlin52 problem](Sources/PlotChristofides/plot.png)
+![Plot of an approximate TSP solution to the berlin52 problem](Sources/PlotTSP/plot.png)
