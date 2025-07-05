@@ -21,19 +21,20 @@ extension Graph {
     let edgeToIdx = Dictionary(uniqueKeysWithValues: edges.enumerated().map { ($0.1, $0.0) })
 
     var constraints = vertices.map { vertex in
-      var coeffs = [Double](repeating: 0, count: edges.count * 2)
+      var coeffs = [Int: Double]()
       for edge in edgesAt(vertex: vertex) {
         coeffs[edgeToIdx[edge]!] = 1.0
       }
-      return Simplex.Constraint(coeffs: coeffs, equals: 2.0)
+      return Simplex.SparseConstraint(coeffCount: edges.count * 2, coeffMap: coeffs, equals: 2.0)
     }
 
     // Constrain each edge <= 1 using a set of slack variables.
     for i in 0..<edges.count {
-      var coeffs = [Double](repeating: 0, count: edges.count * 2)
+      var coeffs = [Int: Double]()
       coeffs[i] = 1
       coeffs[i + edges.count] = 1
-      constraints.append(Simplex.Constraint(coeffs: coeffs, equals: 1.0))
+      constraints.append(
+        Simplex.SparseConstraint(coeffCount: edges.count * 2, coeffMap: coeffs, equals: 1.0))
     }
 
     var best: Set<Edge<V>>?
@@ -80,13 +81,13 @@ extension Graph {
   private func solveWithoutCycles(
     edges: [Edge<V>],
     edgeCost: [Double],
-    constraints: inout [Simplex.Constraint],
+    constraints: inout [Simplex.SparseConstraint],
     logFn: ((String) -> Void)?,
     existingEdges: Set<Edge<V>> = [],
     bound: Double = 0.0
   ) -> [Double]? {
     logFn?("solving with \(constraints.count) initial constraints")
-    let extra = constraints.first!.coeffs.count - edgeCost.count
+    let extra = constraints.first!.coeffCount - edgeCost.count
     var objective: [Double] = edgeCost + [Double](repeating: 0, count: extra)
     let edgeToIdx = Dictionary(uniqueKeysWithValues: edges.enumerated().map { ($0.1, $0.0) })
     while true {
@@ -128,11 +129,10 @@ extension Graph {
         let slackVarIdx = objective.count
         objective.append(0)
         for i in 0..<constraints.count {
-          let old = constraints[i]
-          constraints[i] = .init(coeffs: old.coeffs + [0], equals: old.equals)
+          constraints[i] = constraints[i].addZeroCoeff()
         }
 
-        var coeffs = [Double](repeating: 0, count: slackVarIdx + 1)
+        var coeffs = [Int: Double]()
         var equals = 2.0
         for cutEdge in cutSet(vertices: cutVerts) {
           if let idx = edgeToIdx[cutEdge] {
@@ -143,7 +143,7 @@ extension Graph {
           }
         }
         coeffs[slackVarIdx] = -1
-        constraints.append(.init(coeffs: coeffs, equals: equals))
+        constraints.append(.init(coeffCount: slackVarIdx + 1, coeffMap: coeffs, equals: equals))
       }
     }
   }
@@ -151,7 +151,7 @@ extension Graph {
   private func branchAndCut(
     edges: [Edge<V>],
     edgeCost: [Double],
-    constraints: [Simplex.Constraint],
+    constraints: [Simplex.SparseConstraint],
     best: inout Set<Edge<V>>?,
     bestCost: inout Double?,
     logFn: ((String) -> Void)?,

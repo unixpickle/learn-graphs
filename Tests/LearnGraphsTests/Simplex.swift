@@ -5,7 +5,7 @@ import Testing
 @Test(arguments: [Simplex.PivotRule.bland, .greedy, .greedyThenBland(2), .devex])
 func testSimplexOneSolution2D(pivotRule: Simplex.PivotRule) {
   // There is exactly one solution to this system.
-  let constraints: [Simplex.Constraint] = [
+  let constraints: [Simplex.DenseConstraint] = [
     .init(coeffs: [-3, 4], equals: 5),
     .init(coeffs: [-1, 2], equals: 6),
   ]
@@ -26,7 +26,7 @@ func testSimplexOneSolution2D(pivotRule: Simplex.PivotRule) {
 @Test(arguments: [Simplex.PivotRule.bland, .greedy, .greedyThenBland(2), .devex])
 func testSimplexInfeasible2D(pivotRule: Simplex.PivotRule) {
   // There is a solution here, but it requires x < 0.
-  let constraints: [Simplex.Constraint] = [
+  let constraints: [Simplex.DenseConstraint] = [
     .init(coeffs: [3, 4], equals: 5),
     .init(coeffs: [1, 2], equals: 6),
   ]
@@ -44,7 +44,7 @@ func testSimplexInfeasible2D(pivotRule: Simplex.PivotRule) {
 @Test(arguments: [Simplex.PivotRule.bland, .greedy, .greedyThenBland(2), .devex])
 func testSimplexMaybeUnbounded(pivotRule: Simplex.PivotRule) {
   // There are infinite solutions along a line following y = x - 3
-  let constraints: [Simplex.Constraint] = [
+  let constraints: [Simplex.DenseConstraint] = [
     .init(coeffs: [1, -1], equals: 3)
   ]
 
@@ -65,7 +65,7 @@ func testSimplexMaybeUnbounded(pivotRule: Simplex.PivotRule) {
 @Test(arguments: [Simplex.PivotRule.bland, .greedy, .greedyThenBland(2), .devex])
 func testSimplexRedundant(pivotRule: Simplex.PivotRule) {
   // There are infinite solutions along a line following y = x - 3
-  let constraints: [Simplex.Constraint] = [
+  let constraints: [Simplex.DenseConstraint] = [
     .init(coeffs: [1, -1], equals: 3),
     .init(coeffs: [-1, 1], equals: -3),
   ]
@@ -96,7 +96,7 @@ func testSimplexRedundant(pivotRule: Simplex.PivotRule) {
 func testSimplexClosedPolytope(pivotRule: Simplex.PivotRule) {
   // Create a system of four inequalities that encloses a quadrilateral in the
   // x-y plane.
-  let constraints: [Simplex.Constraint] = [
+  let constraints: [Simplex.DenseConstraint] = [
     .init(coeffs: [1, 1, -1, 0, 0, 0, 0], equals: 2),  // y+x - slack1 = 2 => y+x >= 2
     .init(coeffs: [1, 1, 0, 1, 0, 0, 0], equals: 6),  // y+x + slack2 = 6 => y+x <= 6
     .init(coeffs: [-1, 1, 0, 0, 1, 0, 0], equals: 1),  // y-x + slack3 = 1 => y-x <= 1

@@ -10,15 +10,77 @@ internal class Simplex {
     case greedyThenBland(Int)
   }
 
-  internal struct Constraint {
-    let coeffs: [Double]
-    let equals: Double
+  internal protocol Constraint {
+    func coeffs() -> [Double]
+    func equals() -> Double
+  }
 
-    func setting(_ idx: Int, equalTo: Double) -> Constraint {
-      assert(idx > 0 && idx < coeffs.count, "constraint setting argument out of bounds")
-      let newCoeffs = Array(coeffs[..<idx] + coeffs[(idx + 1)...])
-      let newEquals = equals - coeffs[idx] * equalTo
+  internal struct DenseConstraint: Constraint {
+    let rawCoeffs: [Double]
+    let rawEquals: Double
+
+    init(coeffs: [Double], equals: Double) {
+      rawCoeffs = coeffs
+      rawEquals = equals
+    }
+
+    func setting(_ idx: Int, equalTo: Double) -> Self {
+      assert(idx > 0 && idx < rawCoeffs.count, "constraint setting argument out of bounds")
+      let newCoeffs = Array(rawCoeffs[..<idx] + rawCoeffs[(idx + 1)...])
+      let newEquals = rawEquals - rawCoeffs[idx] * equalTo
       return .init(coeffs: newCoeffs, equals: newEquals)
+    }
+
+    func coeffs() -> [Double] {
+      rawCoeffs
+    }
+
+    func equals() -> Double {
+      rawEquals
+    }
+  }
+
+  internal struct SparseConstraint: Constraint {
+    let coeffCount: Int
+    let coeffMap: [Int: Double]
+    let rawEquals: Double
+
+    init(coeffCount: Int, coeffMap: [Int: Double], equals: Double) {
+      self.coeffCount = coeffCount
+      self.coeffMap = coeffMap
+      self.rawEquals = equals
+    }
+
+    func setting(_ idx: Int, equalTo: Double) -> Self {
+      assert(idx > 0 && idx < coeffCount, "constraint setting argument out of bounds")
+      let newCoeffs = Dictionary(
+        uniqueKeysWithValues: coeffMap.compactMap { iv in
+          if iv.0 < idx {
+            iv
+          } else if iv.0 == idx {
+            nil
+          } else {
+            (iv.0 - 1, iv.1)
+          }
+        })
+      let newEquals = rawEquals - coeffMap[idx, default: 0] * equalTo
+      return .init(coeffCount: coeffCount - 1, coeffMap: newCoeffs, equals: newEquals)
+    }
+
+    func addZeroCoeff() -> Self {
+      .init(coeffCount: coeffCount + 1, coeffMap: coeffMap, equals: rawEquals)
+    }
+
+    func coeffs() -> [Double] {
+      var result = [Double](repeating: 0, count: coeffCount)
+      for (i, x) in coeffMap {
+        result[i] = x
+      }
+      return result
+    }
+
+    func equals() -> Double {
+      rawEquals
     }
   }
 
@@ -29,8 +91,8 @@ internal class Simplex {
   }
 
   /// Minimize an objective subject to equality constraints.
-  internal static func minimize(
-    objective: [Double], constraints: [Constraint], pivotRule: PivotRule = .bland
+  internal static func minimize<C: Constraint>(
+    objective: [Double], constraints: [C], pivotRule: PivotRule = .bland
   ) -> Solution {
     var table = Table.stage1(varCount: objective.count, constraints: constraints)
 
@@ -123,7 +185,7 @@ internal class Simplex {
     ///
     /// The objective will be to minimize the auxiliary variables, so that none of them are
     /// feasible anymore.
-    static func stage1(varCount: Int, constraints: [Constraint]) -> Self {
+    static func stage1<C: Constraint>(varCount: Int, constraints: [C]) -> Self {
       var result = Table(
         rows: constraints.count + 1,
         cols: varCount + constraints.count + 1,
@@ -131,21 +193,23 @@ internal class Simplex {
       )
 
       for (i, constraint) in constraints.enumerated() {
+        let coeffs = constraint.coeffs()
+        let equals = constraint.equals()
         assert(
-          constraint.coeffs.count == varCount,
-          "constraint has \(constraint.coeffs.count) coefficients, but varCount is \(varCount)"
+          coeffs.count == varCount,
+          "constraint has \(coeffs.count) coefficients, but varCount is \(varCount)"
         )
         // Normalize the row by infinity norm.
-        let divisor = max(abs(constraint.equals), constraint.coeffs.map(abs).reduce(0, max))
+        let divisor = max(abs(equals), coeffs.map(abs).reduce(0, max))
 
         // Negate a constraint if the rhs is negative, so that the slack
         // variable can be strictly non-negative.
-        let mult = (constraint.equals > 0 ? 1.0 : -1.0) / (divisor == 0 ? 1 : divisor)
+        let mult = (equals > 0 ? 1.0 : -1.0) / (divisor == 0 ? 1 : divisor)
 
-        for (j, coeff) in constraint.coeffs.enumerated() {
+        for (j, coeff) in coeffs.enumerated() {
           result[i, j] = coeff * mult
         }
-        result[i, -1] = constraint.equals * mult
+        result[i, -1] = equals * mult
       }
 
       // Fill in the identity matrix
