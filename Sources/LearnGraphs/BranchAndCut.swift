@@ -87,14 +87,35 @@ extension Graph {
     bound: Double = 0.0
   ) -> [Double]? {
     logFn?("solving with \(constraints.count) initial constraints")
-    let extra = constraints.first!.coeffCount - edgeCost.count
+    let varCount = constraints.first!.coeffCount
+    let extra = varCount - edgeCost.count
     var objective: [Double] = edgeCost + [Double](repeating: 0, count: extra)
     let edgeToIdx = Dictionary(uniqueKeysWithValues: edges.enumerated().map { ($0.1, $0.0) })
     while true {
+      // Find an initial feasible solution, which should typically be a lot
+      // more efficient than performing stage 1 of simplex directly.
+      guard let feasiblePath = hamiltonianCycle(mustUse: existingEdges) else {
+        return nil
+      }
+      let feasiblePathEdges = zip(feasiblePath[..<(feasiblePath.count - 1)], feasiblePath[1...]).map
+      { Edge($0.0, $0.1) }
+
+      // Create basic variables, either for each edge or for each edge's
+      // corresponding slack variable, based on whether the edge is 0 or 1.
+      var basicVars = Set<Int>()
+      for (i, edge) in edges.enumerated() {
+        if feasiblePathEdges.contains(edge) {
+          basicVars.insert(i)
+        } else {
+          basicVars.insert(i + edges.count)
+        }
+      }
+
       let (solution, cost): ([Double], Double) =
         switch Simplex.minimize(
           objective: objective,
           constraints: constraints,
+          basic: basicVars,
           pivotRule: .greedyThenBland(100)
         ) {
         case .unbounded:
@@ -203,6 +224,7 @@ extension Graph {
       let edge = edges[idx]
       var newEdges = edges
       var newEdgeCost = edgeCost
+      var newGraph = self
       newEdges.remove(at: idx)
       newEdgeCost.remove(at: idx)
       let ordering: [Bool] = solution[idx] > 0.5 ? [true, false] : [false, true]
@@ -212,9 +234,13 @@ extension Graph {
         if keep {
           newExistingEdges.insert(edge)
           newExistingCost += edgeCost[idx]
+        } else {
+          newGraph.remove(edge: edge)
         }
-        let newConstraints = constraints.map { $0.setting(idx, equalTo: keep ? 1 : 0) }
-        branchAndCut(
+        let newConstraints = constraints.map {
+          $0.setting(idx + edges.count, equalTo: keep ? 0 : 1).setting(idx, equalTo: keep ? 1 : 0)
+        }
+        newGraph.branchAndCut(
           edges: newEdges,
           edgeCost: newEdgeCost,
           constraints: newConstraints,

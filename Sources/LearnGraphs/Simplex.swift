@@ -92,9 +92,9 @@ internal class Simplex {
 
   /// Minimize an objective subject to equality constraints.
   internal static func minimize<C: Constraint>(
-    objective: [Double], constraints: [C], pivotRule: PivotRule = .bland
+    objective: [Double], constraints: [C], basic: Set<Int> = [], pivotRule: PivotRule = .bland
   ) -> Solution {
-    var table = Table.stage1(varCount: objective.count, constraints: constraints)
+    var table = Table.stage1(varCount: objective.count, constraints: constraints, basic: basic)
 
     var doneStage1 = false
     while !doneStage1 {
@@ -185,7 +185,7 @@ internal class Simplex {
     ///
     /// The objective will be to minimize the auxiliary variables, so that none of them are
     /// feasible anymore.
-    static func stage1<C: Constraint>(varCount: Int, constraints: [C]) -> Self {
+    static func stage1<C: Constraint>(varCount: Int, constraints: [C], basic: Set<Int> = []) -> Self {
       var result = Table(
         rows: constraints.count + 1,
         cols: varCount + constraints.count + 1,
@@ -217,8 +217,31 @@ internal class Simplex {
         result[i, varCount + i] = 1.0
       }
 
+      for v in basic {
+        assert(v <= varCount)
+        let maxRow = (0..<constraints.count).filter { result.basicCols[$0] >= varCount }
+          .max { abs(result[$0, v]) < abs(result[$1, v]) }!
+        assert(abs(result[maxRow, v]) > Epsilon, "basic variable cannot be created")
+        result.pivot(pivotRule: .greedy, entering: v, leaving: result.basicCols[maxRow])
+      }
+
+      // Make sure remaining slack variables are positive
+      if !basic.isEmpty {
+        for (row, col) in result.basicCols.enumerated() {
+          if col >= varCount && result[row, -1] < 0 {
+            result.scale(row: row, by: -1)
+            result[row, col] *= -1
+          } else if col < varCount {
+            assert(result[row, -1] > -Epsilon)
+          }
+        }
+      }
+
       // The cost is maximal for basic auxiliary variables.
-      for i in varCount..<(result.cols - 1) {
+      for i in 0..<result.cols {
+        result[-1, i] = 0.0
+      }
+      for i in varCount..<(result.cols-1) {
         result[-1, i] = 1.0
       }
       result.eliminateBasicCosts()
