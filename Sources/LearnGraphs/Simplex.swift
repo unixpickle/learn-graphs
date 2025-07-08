@@ -185,7 +185,8 @@ internal class Simplex {
     ///
     /// The objective will be to minimize the auxiliary variables, so that none of them are
     /// feasible anymore.
-    static func stage1<C: Constraint>(varCount: Int, constraints: [C], basic: Set<Int> = []) -> Self {
+    static func stage1<C: Constraint>(varCount: Int, constraints: [C], basic: Set<Int> = []) -> Self
+    {
       var result = Table(
         rows: constraints.count + 1,
         cols: varCount + constraints.count + 1,
@@ -241,7 +242,7 @@ internal class Simplex {
       for i in 0..<result.cols {
         result[-1, i] = 0.0
       }
-      for i in varCount..<(result.cols-1) {
+      for i in varCount..<(result.cols - 1) {
         result[-1, i] = 1.0
       }
       result.eliminateBasicCosts()
