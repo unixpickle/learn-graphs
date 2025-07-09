@@ -2,28 +2,23 @@ private let Epsilon = 1e-5
 
 extension Graph {
 
-  struct ForcedEdge: Hashable {
+  private struct ForcedEdge: Hashable {
     let edge: Edge<V>
     let value: Bool
   }
 
-  class ForcedEdgeTracker {
-    var visited: Set<Set<ForcedEdge>> = []
+  private struct SearchNode {
+    let forcedEdges: Set<ForcedEdge>
+    var constraints: [Simplex.SparseConstraint]
+    var costLowerBound: Double
+    var solution: [Double]?
 
-    init() {
-    }
-
-    func add(_ v: Set<ForcedEdge>) {
-      visited.insert(v)
-    }
-
-    func contains(superset: Set<ForcedEdge>) -> Bool {
-      for x in visited {
-        if superset.isSuperset(of: x) {
-          return true
-        }
+    var nonInteger: [Int]? {
+      if let s = solution {
+        s.enumerated().compactMap { min(abs($0.1), abs($0.1 - 1)) > Epsilon ? $0.0 : nil }
+      } else {
+        nil
       }
-      return false
     }
   }
 
@@ -54,21 +49,15 @@ extension Graph {
       return Simplex.SparseConstraint(coeffCount: edges.count, coeffMap: coeffs, equals: 2.0)
     }
 
-    var best: Set<Edge<V>>?
-    var bestCost: Double? = nil
-    branchAndCut(
+    let best = branchAndCut(
       edges: edges,
       edgeCost: edgeCost,
       constraints: constraints,
-      best: &best,
-      bestCost: &bestCost,
       logFn: logFn
     )
 
-    assert(best != nil, "a solution should have been found; did you pass invalid weights?")
-
     // Trace out the cycle.
-    let graph = Graph(vertices: vertices, edges: best!)
+    let graph = Graph(vertices: vertices, edges: best)
     assert(graph.components().count == 1, "graph should have exactly one component")
     var v = graph.vertices.first!
     var result = [v]
@@ -101,182 +90,166 @@ extension Graph {
     return [cutVerts] + g1.findBadCuts(edgeCost: edgeCost) + g2.findBadCuts(edgeCost: edgeCost)
   }
 
+  private enum SolveResult {
+    case infeasible
+    case addedConstraints(Double)
+    case solved([Double], Double)
+  }
+
   private func solveWithoutCycles(
     edges: [Edge<V>],
     edgeCost: [Double],
     constraints: inout [Simplex.SparseConstraint],
-    logFn: ((String) -> Void)?,
-    existingEdges: Set<Edge<V>> = [],
-    existingCost: Double = 0.0,
-    bound: Double = 0.0
-  ) -> [Double]? {
-    logFn?("solving with \(constraints.count) initial constraints")
+    logFn: ((String) -> Void)?
+  ) -> SolveResult {
     let varCount = constraints.first!.coeffCount
     let extra = varCount - edgeCost.count
     var objective: [Double] = edgeCost + [Double](repeating: 0, count: extra)
     let edgeToIdx = Dictionary(uniqueKeysWithValues: edges.enumerated().map { ($0.1, $0.0) })
-    while true {
-      var (solution, cost): ([Double], Double)
-      switch Simplex.minimize(
-        objective: objective,
-        constraints: constraints,
-        pivotRule: .greedyThenBland(100)
-      ) {
-      case .unbounded:
-        fatalError("solution should not be unbounded")
-      case .infeasible:
-        //fatalError("problem should be feasible")
-        return nil
-      case .solved(let s, let c):
-        solution = s
-        cost = c + existingCost
-      }
-      if cost > bound {
-        logFn?("cost \(cost) is higher than bound \(bound)")
-        return nil
-      }
-      assert(solution.count >= edges.count)
-
-      let cuts = findBadCuts { edge in
-        if let idx = edgeToIdx[edge] {
-          solution[idx]
-        } else {
-          existingEdges.contains(edge) ? 1.0 : 0.0
-        }
-      }
-      if cuts.isEmpty {
-        logFn?("found solution without cycles")
-        return solution
-      }
-
-      logFn?("found \(cuts.count) bad cuts to add constraints for; lower bound is \(cost)")
-
-      for cutVerts in cuts {
-        // Add a constraint that the cut cost cannot go under 2
-        let slackVarIdx = objective.count
-        objective.append(0)
-        for i in 0..<constraints.count {
-          constraints[i] = constraints[i].addZeroCoeff()
-        }
-
-        var coeffs = [Int: Double]()
-        var equals = 2.0
-        for cutEdge in cutSet(vertices: cutVerts) {
-          if let idx = edgeToIdx[cutEdge] {
-            coeffs[idx] = 1.0
-          } else if existingEdges.contains(cutEdge) {
-            // We have to remove this constant edge from the constraint.
-            equals -= 1
-          }
-        }
-        coeffs[slackVarIdx] = -1
-        constraints.append(.init(coeffCount: slackVarIdx + 1, coeffMap: coeffs, equals: equals))
-      }
+    var (solution, cost): ([Double], Double)
+    switch Simplex.minimize(
+      objective: objective,
+      constraints: constraints,
+      pivotRule: .greedyThenBland(100)
+    ) {
+    case .unbounded:
+      fatalError("solution should not be unbounded")
+    case .infeasible:
+      logFn?("found infeasible problem")
+      return .infeasible
+    case .solved(let s, let c):
+      solution = s
+      cost = c
     }
+    assert(solution.count >= edges.count)
+
+    let cuts = findBadCuts { edge in solution[edgeToIdx[edge]!] }
+    if cuts.isEmpty {
+      logFn?("solved LP: cycles=0 cost=\(cost)")
+      return .solved(solution, cost)
+    }
+
+    logFn?("solved LP: cycles=\(cuts.count) cost=\(cost)")
+
+    for cutVerts in cuts {
+      // Add a constraint that the cut cost cannot go under 2
+      let slackVarIdx = objective.count
+      objective.append(0)
+      for i in 0..<constraints.count {
+        constraints[i] = constraints[i].addZeroCoeff()
+      }
+
+      var coeffs = [Int: Double]()
+      for cutEdge in cutSet(vertices: cutVerts) {
+        coeffs[edgeToIdx[cutEdge]!] = 1.0
+      }
+      coeffs[slackVarIdx] = -1
+      constraints.append(.init(coeffCount: slackVarIdx + 1, coeffMap: coeffs, equals: 2.0))
+    }
+
+    return .addedConstraints(cost)
   }
 
   private func branchAndCut(
     edges: [Edge<V>],
     edgeCost: [Double],
     constraints: [Simplex.SparseConstraint],
-    best: inout Set<Edge<V>>?,
-    bestCost: inout Double?,
-    logFn: ((String) -> Void)?,
-    existingEdges: Set<Edge<V>> = [],
-    existingCost: Double = 0.0,
-    forcedEdges: Set<ForcedEdge> = [],
-    tracker: ForcedEdgeTracker = .init()
-  ) {
-    if tracker.contains(superset: forcedEdges) {
-      logFn?("skipping visited constraints")
-      return
-    }
-    var constraints = constraints
+    logFn: ((String) -> Void)?
+  ) -> Set<Edge<V>> {
+    let edgeToIdx = Dictionary(uniqueKeysWithValues: edges.enumerated().map { ($0.1, $0.0) })
 
-    guard
-      let fullSolution = solveWithoutCycles(
-        edges: edges,
-        edgeCost: edgeCost,
-        constraints: &constraints,
-        logFn: logFn,
-        existingEdges: existingEdges,
-        existingCost: existingCost,
-        bound: bestCost ?? Double.infinity
-      )
-    else {
-      tracker.add(forcedEdges)
-      return
-    }
+    var nodes = [SearchNode(forcedEdges: [], constraints: constraints, costLowerBound: 0)]
+    var seenTrees: Set<Set<ForcedEdge>> = [[]]
 
-    // Ignore the slack variables in the solution.
-    let solution = fullSolution[..<edges.count]
-
-    let nonBinaryIndices = solution.enumerated().filter {
-      min(abs($0.1), abs(1 - $0.1)) > Epsilon
-    }.map { $0.0 }
-
-    if nonBinaryIndices.count == 0 {
-      var chosenEdges: [Edge<V>] = []
-      var chosenCost: Double = 0.0
-      for (dimension, (edge, cost)) in zip(solution, zip(edges, edgeCost)) {
-        if dimension > 1 - Epsilon {
-          chosenEdges.append(edge)
-          chosenCost += cost
-        }
-      }
-      let totalCost = existingCost + chosenCost
-      logFn?("found valid solution with cost \(totalCost)")
-      if bestCost == nil || totalCost < bestCost! {
-        best = existingEdges.union(chosenEdges)
-        bestCost = totalCost
-      }
-      tracker.add(forcedEdges)
-      return
-    }
-
-    // Focus on the "least binary" variables first
-    let sortedIdxs = nonBinaryIndices.sorted {
-      abs(0.5 - solution[$0]) < abs(0.5 - solution[$1])
-    }
-
-    logFn?("branching on non-binary variables: \(sortedIdxs)")
-    for idx in sortedIdxs {
-      let edge = edges[idx]
-      var newEdges = edges
-      var newEdgeCost = edgeCost
-      var newGraph = self
-      newEdges.remove(at: idx)
-      newEdgeCost.remove(at: idx)
-      for keep in [true, false] {
-        logFn?("fixing edge \(idx) with initial value \(solution[idx]) to \(keep)")
-        var newExistingEdges = existingEdges
-        var newExistingCost = existingCost
-        if keep {
-          newExistingEdges.insert(edge)
-          newExistingCost += edgeCost[idx]
+    func sortNodes() {
+      nodes.sort {
+        if $0.costLowerBound > $1.costLowerBound {
+          return true
+        } else if $0.costLowerBound < $1.costLowerBound {
+          return false
         } else {
-          newGraph.remove(edge: edge)
+          // Prioritize deeper nodes to hit a solution faster.
+          return $0.forcedEdges.count > $1.forcedEdges.count
         }
-        let newConstraints = constraints.map {
-          $0.setting(idx, equalTo: keep ? 1 : 0)
-        }
-        let newForcedEdges = forcedEdges.union([ForcedEdge(edge: edges[idx], value: keep)])
-        newGraph.branchAndCut(
-          edges: newEdges,
-          edgeCost: newEdgeCost,
-          constraints: newConstraints,
-          best: &best,
-          bestCost: &bestCost,
-          logFn: logFn,
-          existingEdges: newExistingEdges,
-          existingCost: newExistingCost,
-          forcedEdges: newForcedEdges,
-          tracker: tracker
-        )
       }
     }
-    logFn?("completed branching for \(nonBinaryIndices)")
-    tracker.add(forcedEdges)
+
+    func addEdgeConstraint(_ sn: SearchNode, edge: Edge<V>, value: Bool) -> SearchNode {
+      var newForced = sn.forcedEdges
+      newForced.insert(ForcedEdge(edge: edge, value: value))
+      var newConstraints = sn.constraints
+      newConstraints.append(
+        Simplex.SparseConstraint(
+          coeffCount: newConstraints[0].coeffCount,
+          coeffMap: [edgeToIdx[edge]!: 1.0],
+          equals: value ? 1 : 0
+        )
+      )
+      return SearchNode(
+        forcedEdges: newForced,
+        constraints: newConstraints,
+        costLowerBound: sn.costLowerBound
+      )
+    }
+
+    while var next = nodes.popLast() {
+      logFn?(
+        "working on node with depth=\(next.forcedEdges.count) constraints=\(next.constraints.count) bound=\(next.costLowerBound)"
+      )
+      guard let solution = next.solution, let nonInteger = next.nonInteger else {
+        // This node hasn't been solved yet; we may need re-insert it
+        var feasible = true
+        switch solveWithoutCycles(
+          edges: edges,
+          edgeCost: edgeCost,
+          constraints: &next.constraints,
+          logFn: logFn
+        ) {
+        case .infeasible:
+          feasible = false
+        case .addedConstraints(let cost):
+          next.costLowerBound = cost
+        case .solved(let solution, let cost):
+          next.solution = Array(solution[..<edges.count])
+          next.costLowerBound = cost
+        }
+        if feasible {
+          nodes.append(next)
+          sortNodes()
+        }
+        continue
+      }
+
+      if nonInteger.isEmpty {
+        logFn?("found solution depth=\(next.forcedEdges.count) cost=\(next.costLowerBound) sub-nodes")
+        // This is the minimum cost, valid solution.
+        return Set(zip(solution, edges).compactMap {
+          if $0.0 > 0.5 {
+            return $0.1
+          } else {
+            return nil
+          }
+        })
+      }
+
+      assert(
+        Set(nonInteger.map { edges[$0] }).intersection(Set(next.forcedEdges.map { $0.edge })).count == 0,
+        "failed to constrain an edge correctly"
+      )
+      logFn?("branching with \(next.forcedEdges.count * 2) subnodes")
+      for varIdx in nonInteger {
+        for value in [true, false] {
+          let newNode = addEdgeConstraint(next, edge: edges[varIdx], value: value)
+          if !seenTrees.contains(newNode.forcedEdges) {
+            seenTrees.insert(newNode.forcedEdges)
+            nodes.append(newNode)
+          }
+        }
+      }
+      sortNodes()
+    }
+
+    fatalError("no tour was found")
   }
 
 }
