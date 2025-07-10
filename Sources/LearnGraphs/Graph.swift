@@ -33,6 +33,18 @@ public struct Graph<V: Hashable>: Hashable {
     }
   }
 
+  public init<C: Collection<V>>(fullyConnected: C) {
+    self.vertices = Set(fullyConnected)
+    self.adjacencies = [:]
+    for v1 in self.vertices {
+      for v2 in self.vertices {
+        if v1 != v2 {
+          insertEdge(v1, v2)
+        }
+      }
+    }
+  }
+
   public func map<V1>(_ fn: (V) -> V1) -> Graph<V1> {
     Graph<V1>(
       vertices: vertices.map(fn),

@@ -2,7 +2,7 @@ extension Graph {
 
   /// Get the connected components of the graph.
   ///
-  /// If the graph is empty, this returns a single empty graph in the lits.
+  /// If the graph is empty, this returns a single empty graph in the list.
   public func components() -> [Graph] {
     if vertices.isEmpty {
       [self]

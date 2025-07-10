@@ -221,19 +221,22 @@ extension Graph {
       }
 
       if nonInteger.isEmpty {
-        logFn?("found solution depth=\(next.forcedEdges.count) cost=\(next.costLowerBound) sub-nodes")
+        logFn?(
+          "found solution depth=\(next.forcedEdges.count) cost=\(next.costLowerBound) sub-nodes")
         // This is the minimum cost, valid solution.
-        return Set(zip(solution, edges).compactMap {
-          if $0.0 > 0.5 {
-            return $0.1
-          } else {
-            return nil
-          }
-        })
+        return Set(
+          zip(solution, edges).compactMap {
+            if $0.0 > 0.5 {
+              return $0.1
+            } else {
+              return nil
+            }
+          })
       }
 
       assert(
-        Set(nonInteger.map { edges[$0] }).intersection(Set(next.forcedEdges.map { $0.edge })).count == 0,
+        Set(nonInteger.map { edges[$0] }).intersection(Set(next.forcedEdges.map { $0.edge })).count
+          == 0,
         "failed to constrain an edge correctly"
       )
       logFn?("branching with \(next.forcedEdges.count * 2) subnodes")
