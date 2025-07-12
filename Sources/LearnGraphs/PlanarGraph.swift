@@ -90,6 +90,10 @@ public struct PlanarGraph<V: Hashable>: Hashable {
     let b: V
   }
 
+  /// Get the faces of the graph, or return nil if the graph is not a valid
+  /// planar graph.
+  ///
+  /// Each face ends with the same vertex that it starts with.
   public func faces() -> [[V]]? {
     var arrows: Set<Arrow> = []
     for (v, vs) in adjacencies {
@@ -119,6 +123,79 @@ public struct PlanarGraph<V: Hashable>: Hashable {
       results.append(path)
     }
     return results
+  }
+
+  /// Fill all faces with triangles to obtain a maximally planar graph.
+  ///
+  /// If the graph is non-planar, the behavior is undefined.
+  public mutating func triangulate() {
+    var shouldContinue = true
+    while shouldContinue {
+      shouldContinue = false
+      for face in faces()! {
+        let face = Array(face[..<(face.count - 1)])
+        if face.count <= 3 {
+          continue
+        }
+        var counts = [V: Int]()
+        for x in face {
+          counts[x, default: 0] += 1
+        }
+        for rootVertex in counts.filter({ $0.1 == 1 }).map({ $0.0 }) {
+          let rootIdx = face.firstIndex(of: rootVertex)!
+          var rootNextVertex = face[(rootIdx + 1) % face.count]
+          for i in 2...(face.count - 2) {
+            let v = face[(rootIdx + i) % face.count]
+            if counts[v] != 1 {
+              continue
+            }
+            if adjacencies[v]!.contains(rootVertex) {
+              continue
+            }
+            insertHalfEdge(from: rootVertex, to: v, before: rootNextVertex)
+            insertHalfEdge(from: v, to: rootVertex, before: face[(rootIdx + i + 1) % face.count])
+            rootNextVertex = v
+            shouldContinue = true
+          }
+          if shouldContinue {
+            break
+          }
+        }
+      }
+    }
+  }
+
+  private mutating func insertHalfEdge(from: V, to: V, after other: V) {
+    guard var adj = adjacencies[from], !adj.isEmpty else {
+      fatalError("adjacencies should not be empty")
+    }
+    let idx = adj.firstIndex(of: other)!
+    adj.insert(to, at: idx + 1)
+    adjacencies[from] = adj
+  }
+
+  private mutating func insertHalfEdge(from: V, to: V, before other: V) {
+    guard var adj = adjacencies[from], !adj.isEmpty else {
+      fatalError("adjacencies should not be empty")
+    }
+    let idx = adj.firstIndex(of: other)!
+    adj.insert(to, at: idx)
+    adjacencies[from] = adj
+  }
+
+  /// Create a maximally planar graph by adding edges to this graph.
+  public func triangulated() -> PlanarGraph<V> {
+    var g = self
+    g.triangulate()
+    return g
+  }
+
+  /// Create a Graph containing the edges and vertices of this planar graph.
+  public func graph() -> Graph<V> {
+    Graph(
+      vertices: vertices,
+      adjacencies: adjacencies.mapValues(Set.init)
+    )
   }
 
   private struct EmbedVertex: Hashable {

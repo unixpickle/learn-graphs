@@ -70,7 +70,56 @@ func testPlanarEmbeddingK5() {
 }
 
 @Test
-func testPlanarRandom() {
+func testPlanarEmbeddingRandom() {
+  for _ in 0..<100 {
+    let graph = randomPlanarGraph()
+    let emb = PlanarGraph.embed(graph: graph)
+    #expect(emb != nil && emb!.count == 1, "count: \(emb?.count ?? 0)")
+    if emb == nil {
+      continue
+    }
+    let combined = PlanarGraph.mergeBiconnected(emb![0])
+    #expect(combined.graph() == graph)
+    let faces = combined.faces()
+    #expect(faces != nil)
+    if faces == nil {
+      continue
+    }
+    let expectedFaceCount = graph.edgeCount - graph.vertices.count + 2
+    #expect(expectedFaceCount == faces!.count, "faces.count=\(faces!.count)")
+  }
+}
+
+@Test
+func testPlanarTriangulate() {
+  for _ in 0..<50 {
+    let graph = randomPlanarGraph()
+    let emb = PlanarGraph.embed(graph: graph)
+    #expect(emb != nil && emb!.count == 1, "count: \(emb?.count ?? 0)")
+    if emb == nil {
+      continue
+    }
+    let combined = PlanarGraph.mergeBiconnected(emb![0])
+    let oldFaces = combined.faces()
+    #expect(oldFaces != nil)
+    guard let oldFaces = oldFaces else {
+      continue
+    }
+    let triangulated = combined.triangulated()
+    let newFaces = triangulated.faces()
+    #expect(newFaces != nil)
+    guard let newFaces = newFaces else {
+      continue
+    }
+    #expect(newFaces.count >= oldFaces.count)
+    #expect(newFaces.allSatisfy { $0.count <= 4 }, "\(newFaces.map({ $0.count }))")
+    let triGraph = triangulated.graph()
+    let expectedFaceCount = triGraph.edgeCount - triGraph.vertices.count + 2
+    #expect(expectedFaceCount == newFaces.count, "newFaces.count=\(newFaces.count)")
+  }
+}
+
+func randomPlanarGraph() -> Graph<Int> {
   struct Point: Hashable, CustomStringConvertible, CustomDebugStringConvertible {
     let x: Double
     let y: Double
@@ -121,51 +170,28 @@ func testPlanarRandom() {
     return (o1 * o2 < 0) && (o3 * o4 < 0)
   }
 
-  for _ in 0..<50 {
-    let vertCount = (5..<20).randomElement()!
-    var graph = Graph(
-      vertices: (0..<vertCount).map { _ in
-        Point()
-      }
-    )
-    var possibleEdges = Set<Edge<Point>>()
-    for v1 in graph.vertices {
-      for v2 in graph.vertices {
-        if v1 != v2 {
-          possibleEdges.insert(Edge(v1, v2))
-        }
+  let vertCount = (5..<20).randomElement()!
+  var graph = Graph(
+    vertices: (0..<vertCount).map { _ in
+      Point()
+    }
+  )
+  var possibleEdges = Set<Edge<Point>>()
+  for v1 in graph.vertices {
+    for v2 in graph.vertices {
+      if v1 != v2 {
+        possibleEdges.insert(Edge(v1, v2))
       }
     }
-
-    while graph.components().count > 1 {
-      let tryEdge = possibleEdges.randomElement()!
-      possibleEdges.remove(tryEdge)
-
-      var intersects = false
-      for edge in graph.edgeSet {
-        if edgesIntersect(edge, tryEdge) {
-          intersects = true
-          break
-        }
-      }
-
-      if !intersects {
-        graph.insert(edge: tryEdge)
-      }
-    }
-
-    let emb = PlanarGraph.embed(graph: graph)
-    #expect(emb != nil && emb!.count == 1, "count: \(emb?.count ?? 0)")
-    if emb == nil {
-      continue
-    }
-    let combined = PlanarGraph.mergeBiconnected(emb![0])
-    let faces = combined.faces()
-    #expect(faces != nil)
-    if faces == nil {
-      continue
-    }
-    let expectedFaceCount = graph.edgeCount - graph.vertices.count + 2
-    #expect(expectedFaceCount == faces!.count, "faces.count=\(faces!.count)")
   }
+
+  while graph.components().count > 1 {
+    let newEdge = possibleEdges.randomElement()!
+    possibleEdges.remove(newEdge)
+    possibleEdges = possibleEdges.filter { !edgesIntersect($0, newEdge) }
+    graph.insert(edge: newEdge)
+  }
+
+  let verts = Array(graph.vertices)
+  return graph.map { verts.firstIndex(of: $0)! }
 }
