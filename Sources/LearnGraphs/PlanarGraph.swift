@@ -129,40 +129,64 @@ public struct PlanarGraph<V: Hashable>: Hashable {
   ///
   /// If the graph is non-planar, the behavior is undefined.
   public mutating func triangulate() {
-    var shouldContinue = true
-    while shouldContinue {
-      shouldContinue = false
-      for face in faces()! {
-        let face = Array(face[..<(face.count - 1)])
-        if face.count <= 3 {
-          continue
-        }
-        var counts = [V: Int]()
-        for x in face {
-          counts[x, default: 0] += 1
-        }
-        for rootVertex in counts.filter({ $0.1 == 1 }).map({ $0.0 }) {
-          let rootIdx = face.firstIndex(of: rootVertex)!
-          var rootNextVertex = face[(rootIdx + 1) % face.count]
-          for i in 2...(face.count - 2) {
-            let v = face[(rootIdx + i) % face.count]
-            if counts[v] != 1 {
-              continue
-            }
-            if adjacencies[v]!.contains(rootVertex) {
-              continue
-            }
-            insertHalfEdge(from: rootVertex, to: v, before: rootNextVertex)
-            insertHalfEdge(from: v, to: rootVertex, before: face[(rootIdx + i + 1) % face.count])
-            rootNextVertex = v
-            shouldContinue = true
+    var faces = faces()!
+    while let face = faces.popLast() {
+      let face = Array(face[..<(face.count - 1)])
+      if face.count <= 3 {
+        continue
+      }
+
+      // Each vertex that occurs more than once in this face is part of a hole,
+      // and will be traced by a separate face representing the inside of the hole.
+      var counts = [V: Int]()
+      for x in face {
+        counts[x, default: 0] += 1
+      }
+
+      // We might be able to drawn edges from any of the single-occurrence vertices,
+      // but we have to try them all because some of them might have external links
+      // to other vertices in the face.
+      for rootVertex in counts.filter({ $0.1 == 1 }).map({ $0.0 }) {
+        let rootIdx = face.firstIndex(of: rootVertex)!
+        var rootNextVertex = face[(rootIdx + 1) % face.count]
+        var lastFace: [V]? = nil
+        for i in 2...(face.count - 2) {
+          let v = face[(rootIdx + i) % face.count]
+          if counts[v] != 1 {
+            continue
           }
-          if shouldContinue {
-            break
+          if adjacencies[v]!.contains(rootVertex) {
+            continue
           }
+          let vNext = face[(rootIdx + i + 1) % face.count]
+          insertHalfEdge(from: rootVertex, to: v, before: rootNextVertex)
+          insertHalfEdge(from: v, to: rootVertex, before: vNext)
+
+          faces.append(walkFace(start: rootVertex, next: rootNextVertex))
+          lastFace = walkFace(start: v, next: vNext)
+
+          rootNextVertex = v
+        }
+        if let lastFace = lastFace {
+          faces.append(lastFace)
+          break
         }
       }
     }
+  }
+
+  private func walkFace(start: V, next: V) -> [V] {
+    var path = [start]
+    var cur = start
+    var next = next
+    while next != start {
+      path.append(next)
+      let adj = adjacencies[next]!
+      let idx = adj.firstIndex(of: cur)!
+      (cur, next) = (next, adj[(idx + 1) % adj.count])
+    }
+    path.append(next)
+    return path
   }
 
   private mutating func insertHalfEdge(from: V, to: V, after other: V) {
