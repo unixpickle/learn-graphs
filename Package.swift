@@ -43,5 +43,11 @@ let package = Package(
         "berlin52.tsp",
       ]
     ),
+    .executableTarget(
+      name: "PlotPlanar",
+      dependencies: [
+        "LearnGraphs"
+      ]
+    ),
   ]
 )
