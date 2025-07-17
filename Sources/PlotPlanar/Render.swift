@@ -21,34 +21,43 @@ struct Point: Hashable {
 }
 
 func normalize(_ points: [Point], to size: CGSize, padding: CGFloat = 20.0) -> [CGPoint] {
-  guard let minX = points.map({ $0.x }).min(),
-    let maxX = points.map({ $0.x }).max(),
-    let minY = points.map({ $0.y }).min(),
-    let maxY = points.map({ $0.y }).max()
+  guard
+    let minX = points.map(\.x).min(),
+    let maxX = points.map(\.x).max(),
+    let minY = points.map(\.y).min(),
+    let maxY = points.map(\.y).max(),
+    maxX > minX,
+    maxY > minY
   else { return [] }
 
   let scaleX = (size.width - 2 * padding) / CGFloat(maxX - minX)
   let scaleY = (size.height - 2 * padding) / CGFloat(maxY - minY)
   let scale = min(scaleX, scaleY)
 
+  let widthUsed = CGFloat(maxX - minX) * scale
   let heightUsed = CGFloat(maxY - minY) * scale
-  let verticalPadding = (size.height - heightUsed) / 2
 
-  return points.map { point in
-    let normX = CGFloat(point.x - minX) * scale + padding
-    let normY = CGFloat(point.y - minY) * scale + verticalPadding
-    return CGPoint(x: normX, y: size.height - normY)
+  let horizontalPadding = max(padding, (size.width - widthUsed) / 2)
+  let verticalPadding = max(padding, (size.height - heightUsed) / 2)
+
+  return points.map { p in
+    let x = CGFloat(p.x - minX) * scale + horizontalPadding
+    let y = CGFloat(p.y - minY) * scale + verticalPadding
+    return CGPoint(x: x, y: size.height - y)
   }
 }
 
 func drawGraph(
   graph: Graph<Point>,
   outputURL: URL,
-  imageSize: CGSize = CGSize(width: 800, height: 800)
+  imageSize: CGSize = CGSize(width: 1600, height: 1600),
+  radius: CGFloat = 10.0,
+  padding: CGFloat = 40.0,
+  lineWidth: CGFloat = 4.0
 ) {
   let points = Array(graph.vertices)
   let normalized = Dictionary(
-    uniqueKeysWithValues: zip(points, normalize(points, to: imageSize))
+    uniqueKeysWithValues: zip(points, normalize(points, to: imageSize, padding: padding))
   )
 
   let colorSpace = CGColorSpaceCreateDeviceRGB()
@@ -67,7 +76,7 @@ func drawGraph(
 
   // Draw tour path
   context.setStrokeColor(NSColor.red.cgColor)
-  context.setLineWidth(2.0)
+  context.setLineWidth(lineWidth)
   context.beginPath()
   for edge in graph.edgeSet {
     let vs = Array(edge.vertices)
@@ -79,7 +88,6 @@ func drawGraph(
   // Draw points
   context.setFillColor(NSColor.black.cgColor)
   for point in normalized.values {
-    let radius: CGFloat = 5.0
     let rect = CGRect(
       x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
     context.fillEllipse(in: rect)

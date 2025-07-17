@@ -90,8 +90,8 @@ func testPlanarEmbeddingRandom() {
   }
 }
 
-@Test
-func testPlanarTriangulate() {
+@Test(arguments: [TriangulationAlgorithm.greedy, .randomized])
+func testPlanarTriangulate(_ algorithm: TriangulationAlgorithm) {
   for _ in 0..<50 {
     let graph = randomPlanarGraph()
     let emb = PlanarGraph.embed(graph: graph)
@@ -105,7 +105,7 @@ func testPlanarTriangulate() {
     guard let oldFaces = oldFaces else {
       continue
     }
-    let triangulated = combined.triangulated()
+    let triangulated = combined.triangulated(algorithm: algorithm)
     let newFaces = triangulated.faces()
     #expect(newFaces != nil)
     guard let newFaces = newFaces else {

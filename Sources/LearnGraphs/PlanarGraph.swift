@@ -1,3 +1,9 @@
+/// A method for triangulating planar graphs.
+public enum TriangulationAlgorithm: Sendable {
+  case greedy
+  case randomized
+}
+
 /// A rotation system representation of a planar graph.
 ///
 /// Each vertex has an ordered list of neighbors, where the first and last go
@@ -128,7 +134,7 @@ public struct PlanarGraph<V: Hashable>: Hashable {
   /// Fill all faces with triangles to obtain a maximally planar graph.
   ///
   /// If the graph is non-planar, the behavior is undefined.
-  public mutating func triangulate() {
+  public mutating func triangulate(algorithm: TriangulationAlgorithm = .greedy) {
     var faces = faces()!
     while let face = faces.popLast() {
       let face = Array(face[..<(face.count - 1)])
@@ -146,7 +152,8 @@ public struct PlanarGraph<V: Hashable>: Hashable {
       // We might be able to drawn edges from any of the single-occurrence vertices,
       // but we have to try them all because some of them might have external links
       // to other vertices in the face.
-      for rootVertex in counts.filter({ $0.1 == 1 }).map({ $0.0 }) {
+      let candidates = counts.filter({ $0.1 == 1 }).map({ $0.0 })
+      for rootVertex in algorithm == .randomized ? candidates.shuffled() : candidates {
         let rootIdx = face.firstIndex(of: rootVertex)!
         var rootNextVertex = face[(rootIdx + 1) % face.count]
         var lastFace: [V]? = nil
@@ -164,6 +171,10 @@ public struct PlanarGraph<V: Hashable>: Hashable {
 
           faces.append(walkFace(start: rootVertex, next: rootNextVertex))
           lastFace = walkFace(start: v, next: vNext)
+
+          if algorithm == .randomized {
+            break
+          }
 
           rootNextVertex = v
         }
@@ -208,9 +219,9 @@ public struct PlanarGraph<V: Hashable>: Hashable {
   }
 
   /// Create a maximally planar graph by adding edges to this graph.
-  public func triangulated() -> PlanarGraph<V> {
+  public func triangulated(algorithm: TriangulationAlgorithm = .greedy) -> PlanarGraph<V> {
     var g = self
-    g.triangulate()
+    g.triangulate(algorithm: algorithm)
     return g
   }
 
