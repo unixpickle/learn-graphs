@@ -136,6 +136,30 @@ func testSimplexClosedPolytope(pivotRule: Simplex.PivotRule) {
   }
 }
 
+@Test
+func testSimplexInfeasibleLarge() {
+  let constraints = [
+    ([0: 1.0, 4: 1.0], 0.709783861128773),
+    ([1: 1.0, 5: 1.0], 0.709783861128773),
+    ([2: 1.0, 6: 1.0], 0.6779916925187519),
+    ([3: 1.0, 7: 1.0], 0.6779916925187519),
+    ([8: -1.0], 0.0),
+    ([3: 1.0, 9: 1.0, 2: -1.0], 0.0),
+    ([0: -1.0, 3: -1.0, 1: 1.0, 2: 1.0], 0.0),
+    ([1: -1.0, 0: 1.0], 0.0),
+  ].map { Simplex.SparseConstraint(coeffCount: 10, coeffMap: $0.0, equals: $0.1) }
+  var obj = [Double](repeating: 0, count: 10)
+  obj[8] = -1
+  switch Simplex.minimize(objective: obj, constraints: constraints) {
+  case .solved(solution: _, cost: _):
+    ()
+  case .infeasible:
+    #expect(Bool(false))
+  case .unbounded:
+    #expect(Bool(false))
+  }
+}
+
 func solutionsAreClose(_ a: Simplex.Solution, _ b: Simplex.Solution, tol: Double = 1e-5) -> Bool {
   switch a {
   case .unbounded:

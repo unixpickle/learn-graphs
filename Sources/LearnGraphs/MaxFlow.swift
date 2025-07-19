@@ -1,9 +1,14 @@
 public struct Flow<V: Hashable> {
   /// Flows from each vertex into each neighboring vertex.
   public var flows: [V: [V: Double]]
+
+  /// Compute the total flow out of a source node.
+  public func totalFlow(from source: V) -> Double {
+    flows[source, default: [:]].values.reduce(0, +)
+  }
 }
 
-public enum MaxFlowAlgorithm {
+public enum MaxFlowAlgorithm: Sendable {
   case linearProgram
 }
 
@@ -62,7 +67,7 @@ extension Graph {
       var coeffs = [Int: Double]()
       for other in neighbors(vertex: v) {
         let outgoing = DirectedEdge(from: v, to: other)
-        let incoming = DirectedEdge(from: v, to: other)
+        let incoming = DirectedEdge(from: other, to: v)
         coeffs[edgeToIdx[outgoing]!] = 1.0
         coeffs[edgeToIdx[incoming]!] = -1.0
       }
@@ -77,7 +82,7 @@ extension Graph {
     }
 
     var objective = [Double](repeating: 0, count: varCount)
-    objective[sourceVar] = 1.0
+    objective[sourceVar] = -1.0
     guard
       case .solved(let solution, _) = Simplex.minimize(
         objective: objective, constraints: constraints)

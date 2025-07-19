@@ -107,6 +107,7 @@ internal class Simplex {
         doneStage1 = true
       }
     }
+    table.finishStage1()
 
     guard var table2 = table.stage2(objective: objective) else {
       return .infeasible
@@ -424,6 +425,24 @@ internal class Simplex {
     private mutating func add(row: Int, to: Int, scale: Double) {
       for i in 0..<cols {
         self[to, i] += self[row, i] * scale
+      }
+    }
+
+    /// Any remaining slack variables in the basic set which are zero
+    /// can either be pivoted out or deleted.
+    /// This handles the case where we pivot out the variables.
+    mutating func finishStage1() {
+      let constraintCount = rows - 1
+      let varCount = cols - 1
+      let originalVarCount = varCount - constraintCount
+      for (row, col) in basicCols.enumerated() {
+        if col >= originalVarCount {
+          if abs(self[row, -1]) < Epsilon {
+            if let nonzeroIdx = (0..<originalVarCount).first(where: { self[row, $0] > Epsilon }) {
+              self.pivot(pivotRule: .greedy, entering: nonzeroIdx, leaving: col)
+            }
+          }
+        }
       }
     }
 
