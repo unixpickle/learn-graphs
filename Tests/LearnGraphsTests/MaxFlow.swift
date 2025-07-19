@@ -2,7 +2,7 @@ import Testing
 
 @testable import LearnGraphs
 
-@Test(arguments: [MaxFlowAlgorithm.linearProgram])
+@Test(arguments: [MaxFlowAlgorithm.linearProgram, .edmundsKarp])
 func testMaxFlowSimple(_ algo: MaxFlowAlgorithm) {
   let graph = Graph(vertices: [0, 1], edges: [Edge(0, 1)])
   let flow = graph.maxFlow(from: 0, to: 1, algorithm: algo) { (_, _) in 1.0 }
@@ -10,7 +10,7 @@ func testMaxFlowSimple(_ algo: MaxFlowAlgorithm) {
   #expect(abs(flow.totalFlow(from: 0) - 1) < 1e-5)
 }
 
-@Test(arguments: [MaxFlowAlgorithm.linearProgram])
+@Test(arguments: [MaxFlowAlgorithm.linearProgram, .edmundsKarp])
 func testMaxFlowMinCut(_ algo: MaxFlowAlgorithm) {
   var i = 0
   while i < 5 {

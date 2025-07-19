@@ -6,10 +6,25 @@ public struct Flow<V: Hashable> {
   public func totalFlow(from source: V) -> Double {
     flows[source, default: [:]].values.reduce(0, +)
   }
+
+  public func flow(from source: V, to dest: V) -> Double {
+    flows[source, default: [:]][dest, default: 0]
+  }
+
+  public mutating func add(flow: Double, from source: V, to dest: V) {
+    flows[source, default: [:]][dest, default: 0] += flow
+    flows[dest, default: [:]][source, default: 0] -= flow
+  }
+
+  public mutating func set(flow: Double, from source: V, to dest: V) {
+    flows[source, default: [:]][dest, default: 0] = flow
+    flows[dest, default: [:]][source, default: 0] = -flow
+  }
 }
 
 public enum MaxFlowAlgorithm: Sendable {
   case linearProgram
+  case edmundsKarp
 }
 
 extension Graph {
@@ -24,6 +39,8 @@ extension Graph {
     switch algorithm {
     case .linearProgram:
       maxFlowLP(from: source, to: destination, capacity: capacity)
+    case .edmundsKarp:
+      maxFlowEK(from: source, to: destination, capacity: capacity)
     }
   }
 
@@ -100,5 +117,59 @@ extension Graph {
       flows[d2.from, default: [:]][d2.to] = -d1Flow
     }
     return Flow(flows: flows)
+  }
+
+  private func maxFlowEK(from source: V, to destination: V, capacity: (V, V) -> Double) -> Flow<V> {
+    var result = Flow<V>(flows: [:])
+    while true {
+      var foundPath: [V]? = nil
+      var queue = [[source]]
+      var seen: Set<V> = [source]
+
+      while let path = queue.first {
+        queue.remove(at: 0)
+        let v = path.last!
+        if v == destination {
+          foundPath = path
+        }
+        for neighbor in neighbors(vertex: v) {
+          if result.flow(from: v, to: neighbor) < capacity(v, neighbor) {
+            if !seen.contains(neighbor) {
+              queue.append(path + [neighbor])
+              seen.insert(neighbor)
+            }
+          }
+        }
+      }
+
+      guard let augPath = foundPath else {
+        break
+      }
+
+      var increase = Double.infinity
+      var tightEdges: [DirectedEdge<V>: Double] = [:]
+      for (v1, v2) in zip(augPath, augPath[1...]) {
+        let currentFlow = result.flow(from: v1, to: v2)
+        let capacity = capacity(v1, v2)
+        let bound = capacity - currentFlow
+        if bound < increase {
+          increase = bound
+          tightEdges = [DirectedEdge(from: v1, to: v2): capacity]
+        } else if bound == increase {
+          tightEdges[DirectedEdge(from: v1, to: v2)] = capacity
+        }
+      }
+
+      for (v1, v2) in zip(augPath, augPath[1...]) {
+        if let exactFlow = tightEdges[DirectedEdge(from: v1, to: v2)] {
+          // Avoid numerical issues to make sure at least one edge is actually
+          // hitting the constraint.
+          result.set(flow: exactFlow, from: v1, to: v2)
+        } else {
+          result.add(flow: increase, from: v1, to: v2)
+        }
+      }
+    }
+    return result
   }
 }
