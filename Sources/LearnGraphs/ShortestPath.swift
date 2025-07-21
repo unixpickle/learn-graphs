@@ -22,6 +22,8 @@ extension Graph {
   /// Finds the shortest path from a vertex to another vertex.
   ///
   /// If no such path exists, returns nil.
+  ///
+  /// The path includes the start and end nodes.
   public func shortestPath<C>(from: V, to: V, edgeCost: (Edge<V>) -> C) -> [V]?
   where C: Comparable, C: AdditiveArithmetic {
     var queue = [DijkstraNode<C>(vertex: from, totalCost: .zero)]

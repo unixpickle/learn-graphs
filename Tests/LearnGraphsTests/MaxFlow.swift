@@ -33,7 +33,7 @@ func testMaxFlowMinCut(_ algo: MaxFlowAlgorithm) {
   }
 }
 
-func ensureFlowIsValid<V: Hashable>(flow: Flow<V>, from: V, to: V) {
+func ensureFlowIsValid<V: Hashable>(flow: Flow<V, Double>, from: V, to: V) {
   for (source, dests) in flow.flows {
     let sum = dests.values.reduce(0, +)
     if source == from {

@@ -301,7 +301,7 @@ extension Graph {
       }
     }
 
-    class Vertex: Hashable {
+    class Vertex: PointerHasher {
       var weight: W
       var rawVertex: V? = nil
       var blossom: Blossom? = nil
@@ -314,14 +314,6 @@ extension Graph {
       init(weight: W, blossom: Blossom) {
         self.weight = weight
         self.blossom = blossom
-      }
-
-      func hash(into hasher: inout Hasher) {
-        hasher.combine(ObjectIdentifier(self))
-      }
-
-      static func == (lhs: Vertex, rhs: Vertex) -> Bool {
-        lhs === rhs
       }
     }
 

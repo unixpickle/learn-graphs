@@ -46,11 +46,14 @@ public struct Graph<V: Hashable>: Hashable {
   }
 
   public func map<V1>(_ fn: (V) -> V1) -> Graph<V1> {
-    Graph<V1>(
-      vertices: vertices.map(fn),
+    let vertMapping = Dictionary(
+      uniqueKeysWithValues: vertices.map { ($0, fn($0)) }
+    )
+    return Graph<V1>(
+      vertices: vertices.map { vertMapping[$0]! },
       adjacencies: [V1: Set<V1>](
         uniqueKeysWithValues: adjacencies.map { key, value in
-          (fn(key), Set(value.map(fn)))
+          (vertMapping[key]!, Set(value.map { x in vertMapping[x]! }))
         }
       )
     )

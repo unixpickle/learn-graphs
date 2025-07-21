@@ -69,3 +69,42 @@ func testMinCostCutComponents() {
     )
   }
 }
+
+@Test
+func testGomoryHuTree() {
+  var i = 0
+  while i < 5 {
+    let graph = Graph(random: 0..<20, edgeProb: 0.1)
+    if graph.components().count > 1 {
+      continue
+    }
+    i += 1
+
+    let costs = Dictionary(
+      uniqueKeysWithValues: graph.edgeSet.map { ($0, Double.random(in: 0..<1)) }
+    )
+    let tree = graph.gomoryHuTree { costs[$0]! }
+
+    // Check that the minimum cost cut is reflected.
+    let (s1, s2, cutCost) = graph.minCostCut { costs[$0]! }
+    for v1 in s1 {
+      for v2 in s2 {
+        let (_, _, minCost) = tree.minCut(from: v1, to: v2)
+        assert(abs(minCost - cutCost) < 1e-5)
+      }
+    }
+
+    // Check all pairwise costs
+    for v1 in graph.vertices {
+      for v2 in graph.vertices {
+        if v1 == v2 {
+          continue
+        }
+        let flow = graph.maxFlow(from: v1, to: v2) { (x, y) in costs[Edge(x, y)]! }
+        let actualMinCost = flow.totalFlow(from: v1)
+        let (_, _, minCost) = tree.minCut(from: v1, to: v2)
+        assert(abs(minCost - actualMinCost) < 1e-5)
+      }
+    }
+  }
+}

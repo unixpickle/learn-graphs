@@ -1,24 +1,38 @@
-public struct Flow<V: Hashable> {
+public struct Flow<V: Hashable, C> where C: Comparable, C: AdditiveArithmetic {
   /// Flows from each vertex into each neighboring vertex.
-  public var flows: [V: [V: Double]]
+  public var flows: [V: [V: C]]
 
   /// Compute the total flow out of a source node.
-  public func totalFlow(from source: V) -> Double {
-    flows[source, default: [:]].values.reduce(0, +)
+  public func totalFlow(from source: V) -> C {
+    flows[source, default: [:]].values.reduce(.zero, +)
   }
 
-  public func flow(from source: V, to dest: V) -> Double {
-    flows[source, default: [:]][dest, default: 0]
+  public func flow(from source: V, to dest: V) -> C {
+    flows[source, default: [:]][dest, default: .zero]
   }
 
-  public mutating func add(flow: Double, from source: V, to dest: V) {
-    flows[source, default: [:]][dest, default: 0] += flow
-    flows[dest, default: [:]][source, default: 0] -= flow
+  public mutating func add(flow: C, from source: V, to dest: V) {
+    flows[source, default: [:]][dest, default: .zero] += flow
+    flows[dest, default: [:]][source, default: .zero] -= flow
   }
 
-  public mutating func set(flow: Double, from source: V, to dest: V) {
-    flows[source, default: [:]][dest, default: 0] = flow
-    flows[dest, default: [:]][source, default: 0] = -flow
+  public mutating func set(flow: C, from source: V, to dest: V) {
+    flows[source, default: [:]][dest, default: .zero] = flow
+    flows[dest, default: [:]][source, default: .zero] = .zero - flow
+  }
+
+  /// Create a graph where we only keep edges that are not at full
+  /// flow capacity in one direction or the other.
+  public func residual(graph: Graph<V>, capacity: (V, V) -> C) -> Graph<V> {
+    Graph(
+      vertices: graph.vertices,
+      edges: graph.edgeSet.filter { edge in
+        let vs = Array(edge.vertices)
+        let f1 = flow(from: vs[0], to: vs[1])
+        let f2 = flow(from: vs[1], to: vs[0])
+        return f1 < capacity(vs[0], vs[1]) && f2 < capacity(vs[1], vs[0])
+      }
+    )
   }
 }
 
@@ -33,9 +47,9 @@ extension Graph {
   public func maxFlow(
     from source: V,
     to destination: V,
-    algorithm: MaxFlowAlgorithm,
+    algorithm: MaxFlowAlgorithm = .edmundsKarp,
     capacity: (V, V) -> Double
-  ) -> Flow<V> {
+  ) -> Flow<V, Double> {
     switch algorithm {
     case .linearProgram:
       maxFlowLP(from: source, to: destination, capacity: capacity)
@@ -44,7 +58,9 @@ extension Graph {
     }
   }
 
-  private func maxFlowLP(from source: V, to destination: V, capacity: (V, V) -> Double) -> Flow<V> {
+  private func maxFlowLP(from source: V, to destination: V, capacity: (V, V) -> Double) -> Flow<
+    V, Double
+  > {
     let dirEdges = edgeSet.flatMap { edge in
       let vs = Array(edge.vertices)
       return [
@@ -119,8 +135,10 @@ extension Graph {
     return Flow(flows: flows)
   }
 
-  private func maxFlowEK(from source: V, to destination: V, capacity: (V, V) -> Double) -> Flow<V> {
-    var result = Flow<V>(flows: [:])
+  /// Compute the maximum flow using Edmunds-Karp.
+  public func maxFlowEK<C>(from source: V, to destination: V, capacity: (V, V) -> C) -> Flow<V, C>
+  where C: Comparable, C: AdditiveArithmetic {
+    var result = Flow<V, C>(flows: [:])
     while true {
       var foundPath: [V]? = nil
       var queue = [[source]]
@@ -146,19 +164,20 @@ extension Graph {
         break
       }
 
-      var increase = Double.infinity
-      var tightEdges: [DirectedEdge<V>: Double] = [:]
+      var increase: C? = nil
+      var tightEdges: [DirectedEdge<V>: C] = [:]
       for (v1, v2) in zip(augPath, augPath[1...]) {
         let currentFlow = result.flow(from: v1, to: v2)
         let capacity = capacity(v1, v2)
         let bound = capacity - currentFlow
-        if bound < increase {
+        if increase == nil || bound < increase! {
           increase = bound
           tightEdges = [DirectedEdge(from: v1, to: v2): capacity]
         } else if bound == increase {
           tightEdges[DirectedEdge(from: v1, to: v2)] = capacity
         }
       }
+      guard let increase = increase else { fatalError() }
 
       for (v1, v2) in zip(augPath, augPath[1...]) {
         if let exactFlow = tightEdges[DirectedEdge(from: v1, to: v2)] {

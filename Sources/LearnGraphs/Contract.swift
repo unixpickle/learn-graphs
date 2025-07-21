@@ -77,7 +77,7 @@ private class LinkedList<V> {
   }
 }
 
-public class ContractedVertex<V>: Hashable where V: Hashable {
+public class ContractedVertex<V>: PointerHasher where V: Hashable {
   public let vertices: Set<V>
 
   /// An arbitrary vertex in the set that can be used to represent this vertex
@@ -87,14 +87,6 @@ public class ContractedVertex<V>: Hashable where V: Hashable {
   internal init(vertices: Set<V>) {
     self.vertices = vertices
     self.representative = vertices.first!
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(ObjectIdentifier(self))
-  }
-
-  public static func == (_ a: ContractedVertex<V>, _ b: ContractedVertex<V>) -> Bool {
-    a === b
   }
 }
 
