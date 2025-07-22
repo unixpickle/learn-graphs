@@ -90,6 +90,41 @@ extension Graph {
     return [cutVerts] + g1.findBadCuts(edgeCost: edgeCost) + g2.findBadCuts(edgeCost: edgeCost)
   }
 
+  private func findViolatedBlossom(edgeCost: (Edge<V>) -> Double) -> [(
+    handle: Set<V>, teeth: Set<Edge<V>>
+  )] {
+    // https://www.lancaster.ac.uk/staff/letchfoa/other-publications/2004-IPCO-bmatching.pdf
+    let g = Graph(vertices: vertices, edges: edgeSet.filter { edgeCost($0) > Epsilon })
+    let tree = g.gomoryHuTree { edge in
+      let c = edgeCost(edge)
+      return min(c, 1 - c)
+    }
+
+    var maxViolation: Double = Epsilon
+    var results: [(handle: Set<V>, teeth: Set<Edge<V>>)] = []
+    for (s1, s2, _) in tree.cuts() {
+      for handle in [s1, s2] {
+        let possibleTeeth = cutSet(vertices: s2).sorted { e1, e2 in
+          return edgeCost(e1) > edgeCost(e2)
+        }
+        var currentCost = possibleTeeth.map(edgeCost).reduce(0, +)
+        for (i, tooth) in possibleTeeth.enumerated() {
+          currentCost += 1
+          currentCost -= edgeCost(tooth) * 2  // Turn the positive into a negative
+          if i % 2 == 0 && 1 - currentCost > maxViolation {
+            maxViolation = 1 - currentCost
+            results.append((
+              handle: handle,
+              teeth: Set(possibleTeeth[...i])
+            ))
+          }
+        }
+      }
+    }
+
+    return results
+  }
+
   private enum SolveResult {
     case infeasible
     case addedConstraints(Double)
@@ -110,7 +145,8 @@ extension Graph {
     switch Simplex.minimize(
       objective: objective,
       constraints: constraints,
-      pivotRule: .greedyThenBland(100)
+      pivotRule: .greedyThenBland(10000),
+      refactorInterval: 50
     ) {
     case .unbounded:
       fatalError("solution should not be unbounded")
@@ -124,12 +160,18 @@ extension Graph {
     assert(solution.count >= edges.count)
 
     let cuts = findBadCuts { edge in solution[edgeToIdx[edge]!] }
-    if cuts.isEmpty {
-      logFn?("solved LP: cycles=0 cost=\(cost)")
+    let violatedBlossom: [(handle: Set<V>, teeth: Set<Edge<V>>)] =
+      if !cuts.isEmpty || solution.allSatisfy({ min($0, 1 - $0) < Epsilon }) {
+        []
+      } else {
+        findViolatedBlossom(edgeCost: { edge in solution[edgeToIdx[edge]!] })
+      }
+
+    logFn?("solved LP: cycles=\(cuts.count) blossom=\(violatedBlossom.count) cost=\(cost)")
+
+    if cuts.isEmpty && violatedBlossom.isEmpty {
       return .solved(solution, cost)
     }
-
-    logFn?("solved LP: cycles=\(cuts.count) cost=\(cost)")
 
     for cutVerts in cuts {
       // Add a constraint that the cut cost cannot go under 2
@@ -145,6 +187,30 @@ extension Graph {
       }
       coeffs[slackVarIdx] = -1
       constraints.append(.init(coeffCount: slackVarIdx + 1, coeffMap: coeffs, equals: 2.0))
+    }
+
+    for (handle, teeth) in violatedBlossom {
+      // Add a constraint that edges(kept) - edges(teeth) <= 1 - count(teeth)
+      let slackVarIdx = objective.count
+      objective.append(0)
+      for i in 0..<constraints.count {
+        constraints[i] = constraints[i].addZeroCoeff()
+      }
+
+      let handleEdges = cutSet(vertices: handle)
+      let handleKept = handleEdges.subtracting(teeth)
+
+      var coeffs = [Int: Double]()
+      for edge in handleKept {
+        coeffs[edgeToIdx[edge]!] = 1.0
+      }
+      for edge in teeth {
+        coeffs[edgeToIdx[edge]!] = -1.0
+      }
+      coeffs[slackVarIdx] = 1
+      constraints.append(
+        .init(coeffCount: slackVarIdx + 1, coeffMap: coeffs, equals: 1.0 - Double(teeth.count))
+      )
     }
 
     return .addedConstraints(cost)
@@ -239,7 +305,9 @@ extension Graph {
           == 0,
         "failed to constrain an edge correctly"
       )
-      logFn?("branching with \(next.forcedEdges.count * 2) subnodes")
+      logFn?(
+        "branching with \(next.forcedEdges.count * 2) subnodes and \(nonInteger.count) non-integers"
+      )
       for varIdx in nonInteger {
         for value in [true, false] {
           let newNode = addEdgeConstraint(next, edge: edges[varIdx], value: value)

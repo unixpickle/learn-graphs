@@ -92,16 +92,28 @@ internal class Simplex {
 
   /// Minimize an objective subject to equality constraints.
   internal static func minimize<C: Constraint>(
-    objective: [Double], constraints: [C], basic: Set<Int> = [], pivotRule: PivotRule = .bland
+    objective: [Double],
+    constraints: [C],
+    basic: Set<Int> = [],
+    pivotRule: PivotRule = .bland,
+    refactorInterval: Int? = nil
   ) -> Solution {
     var table = Table.stage1(varCount: objective.count, constraints: constraints, basic: basic)
+    var tableStart = table
 
     var doneStage1 = false
+    var step = 0
     while !doneStage1 {
       switch table.step(pivotRule: pivotRule) {
       case .unbounded:
         fatalError("stage 1 should never be unbounded")
       case .success:
+        step += 1
+        if let ival = refactorInterval, step % ival == 0 {
+          let basic = table.basicCols
+          table = tableStart
+          table.refactor(newBasicCols: basic)
+        }
         continue
       case .converged:
         doneStage1 = true
@@ -112,11 +124,19 @@ internal class Simplex {
     guard var table2 = table.stage2(objective: objective) else {
       return .infeasible
     }
+    tableStart = table2
+    step = 0
     while true {
       switch table2.step(pivotRule: pivotRule) {
       case .unbounded:
         return .unbounded
       case .success:
+        step += 1
+        if let ival = refactorInterval, step % ival == 0 {
+          let basic = table2.basicCols
+          table2 = tableStart
+          table2.refactor(newBasicCols: basic)
+        }
         continue
       case .converged:
         return .solved(solution: table2.solution, cost: table2.cost)
@@ -414,6 +434,10 @@ internal class Simplex {
         &values,  // output matrix
         Int32(cols)  // stride of output matrix
       )
+
+      for row in 0..<(rows - 1) {
+        self[row, -1] = max(0, self[row, -1])
+      }
     }
 
     private mutating func scale(row: Int, by: Double) {
@@ -494,6 +518,35 @@ internal class Simplex {
       result.eliminateBasicCosts()
 
       return result
+    }
+
+    mutating func refactor(newBasicCols: [Int]) {
+      assert(rows <= cols)
+      assert(rows - 1 == newBasicCols.count)
+      var mat = ColMajorMatrix(rows: rows - 1, cols: rows - 1)
+      for (row, col) in newBasicCols.enumerated() {
+        let dstCol = row
+        for i in 0..<(rows - 1) {
+          mat[i, dstCol] = self[i, col]
+        }
+      }
+      guard case .success(var solution) = mat.lu() else {
+        fatalError("failed to solve refactor basis")
+      }
+      var fullMatrix = ColMajorMatrix(rows: rows - 1, cols: cols)
+      for i in 0..<(rows - 1) {
+        for j in 0..<cols {
+          fullMatrix[i, j] = self[i, j]
+        }
+      }
+      solution.apply(&fullMatrix)
+      for i in 0..<(rows - 1) {
+        for j in 0..<cols {
+          self[i, j] = fullMatrix[i, j]
+        }
+      }
+      basicCols = newBasicCols
+      eliminateBasicCosts()
     }
   }
 }

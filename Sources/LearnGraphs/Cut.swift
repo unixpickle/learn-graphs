@@ -21,6 +21,24 @@ public struct GomoryHuTree<V: Hashable, C> where C: Comparable, C: AdditiveArith
     assert(comps.count == 2)
     return (comps[0].vertices, comps[1].vertices, minCost!)
   }
+
+  /// Iterate through all of the cuts induced by edges in the tree.
+  public func cuts() -> AnyIterator<(Set<V>, Set<V>, C)> {
+    let edges = Array(tree.edgeSet)
+    var i = 0
+    return AnyIterator { [tree] in
+      if i == edges.count {
+        return nil
+      }
+      let edge = edges[i]
+      i += 1
+      var splitG = tree
+      splitG.remove(edge: edge)
+      let comps = splitG.components()
+      assert(comps.count == 2)
+      return (comps[0].vertices, comps[1].vertices, cost[edge]!)
+    }
+  }
 }
 
 extension Graph {
