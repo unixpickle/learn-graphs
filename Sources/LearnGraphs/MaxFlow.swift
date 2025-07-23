@@ -141,11 +141,10 @@ extension Graph {
     var result = Flow<V, C>(flows: [:])
     while true {
       var foundPath: [V]? = nil
-      var queue = [[source]]
+      var queue: Deque<[V]> = [[source]]
       var seen: Set<V> = [source]
 
-      while let path = queue.first {
-        queue.remove(at: 0)
+      while let path = queue.popFirst() {
         let v = path.last!
         if v == destination {
           foundPath = path
@@ -153,7 +152,7 @@ extension Graph {
         for neighbor in neighbors(vertex: v) {
           if result.flow(from: v, to: neighbor) < capacity(v, neighbor) {
             if !seen.contains(neighbor) {
-              queue.append(path + [neighbor])
+              queue.pushLast(path + [neighbor])
               seen.insert(neighbor)
             }
           }
