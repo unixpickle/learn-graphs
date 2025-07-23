@@ -110,9 +110,7 @@ internal class Simplex {
       case .success:
         step += 1
         if let ival = refactorInterval, step % ival == 0 {
-          let basic = table.basicCols
-          table = tableStart
-          table.refactor(newBasicCols: basic)
+          table.refactor(original: tableStart)
         }
         continue
       case .converged:
@@ -133,9 +131,7 @@ internal class Simplex {
       case .success:
         step += 1
         if let ival = refactorInterval, step % ival == 0 {
-          let basic = table2.basicCols
-          table2 = tableStart
-          table2.refactor(newBasicCols: basic)
+          table2.refactor(original: tableStart)
         }
         continue
       case .converged:
@@ -351,8 +347,7 @@ internal class Simplex {
           {
             if switchedToBland
               || (costHistory.count > stallStepCount
-                && abs(costHistory[costHistory.count - stallStepCount] - costHistory.last!)
-                  < Epsilon)
+                && costHistory[costHistory.count - stallStepCount] <= costHistory.last!)
             {
               switchedToBland = true
               return (0..<(cols - 1)).first(where: { self[-1, $0] < -Epsilon })
@@ -435,8 +430,23 @@ internal class Simplex {
         Int32(cols)  // stride of output matrix
       )
 
+      clipRHS()
+      fillIdentityColumn(col: entering, rowWithOne: row)
+    }
+
+    private mutating func clipRHS() {
       for row in 0..<(rows - 1) {
         self[row, -1] = max(0, self[row, -1])
+      }
+    }
+
+    private mutating func fillIdentityColumn(col: Int, rowWithOne: Int) {
+      for i in 0..<rows {
+        if i == rowWithOne {
+          self[i, col] = 1
+        } else {
+          self[i, col] = 0
+        }
       }
     }
 
@@ -520,33 +530,46 @@ internal class Simplex {
       return result
     }
 
-    mutating func refactor(newBasicCols: [Int]) {
+    mutating func refactor(original: Table) {
       assert(rows <= cols)
-      assert(rows - 1 == newBasicCols.count)
+      assert(rows - 1 == basicCols.count)
       var mat = ColMajorMatrix(rows: rows - 1, cols: rows - 1)
-      for (row, col) in newBasicCols.enumerated() {
+      for (row, col) in basicCols.enumerated() {
         let dstCol = row
         for i in 0..<(rows - 1) {
-          mat[i, dstCol] = self[i, col]
+          mat[i, dstCol] = original[i, col]
         }
       }
       guard case .success(var solution) = mat.lu() else {
         fatalError("failed to solve refactor basis")
       }
-      var fullMatrix = ColMajorMatrix(rows: rows - 1, cols: cols)
+
+      // Apply the inverse to all the non-basic columns.
+      // We leave the basic columns as-is, since they are exactly
+      // columns of the identity already.
+      let basicSet = Set(basicCols)
+      let nonbasicColumns = (0..<cols).filter { !basicSet.contains($0) }
+      var fullMatrix = ColMajorMatrix(rows: rows - 1, cols: nonbasicColumns.count)
       for i in 0..<(rows - 1) {
-        for j in 0..<cols {
-          fullMatrix[i, j] = self[i, j]
+        for (dstCol, srcCol) in nonbasicColumns.enumerated() {
+          fullMatrix[i, dstCol] = original[i, srcCol]
         }
       }
       solution.apply(&fullMatrix)
       for i in 0..<(rows - 1) {
-        for j in 0..<cols {
-          self[i, j] = fullMatrix[i, j]
+        for (srcCol, dstCol) in nonbasicColumns.enumerated() {
+          self[i, dstCol] = fullMatrix[i, srcCol]
         }
       }
-      basicCols = newBasicCols
+
+      // Copy original reduced costs before eliminating
+      for i in 0..<cols {
+        self[-1, i] = original[-1, i]
+      }
       eliminateBasicCosts()
+
+      // Deal with rounding error of LU factorization.
+      clipRHS()
     }
   }
 }

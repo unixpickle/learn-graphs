@@ -100,24 +100,22 @@ extension Graph {
       return min(c, 1 - c)
     }
 
-    var maxViolation: Double = Epsilon
     var results: [(handle: Set<V>, teeth: Set<Edge<V>>)] = []
-    for (s1, s2, _) in tree.cuts() {
-      for handle in [s1, s2] {
-        let possibleTeeth = cutSet(vertices: s2).sorted { e1, e2 in
-          return edgeCost(e1) > edgeCost(e2)
-        }
-        var currentCost = possibleTeeth.map(edgeCost).reduce(0, +)
-        for (i, tooth) in possibleTeeth.enumerated() {
-          currentCost += 1
-          currentCost -= edgeCost(tooth) * 2  // Turn the positive into a negative
-          if i % 2 == 0 && 1 - currentCost > maxViolation {
-            maxViolation = 1 - currentCost
-            results.append((
+    for (handle, _, _) in tree.cuts() {
+      let possibleTeeth = cutSet(vertices: handle).sorted { e1, e2 in
+        return edgeCost(e1) > edgeCost(e2)
+      }
+      var currentCost = possibleTeeth.map(edgeCost).reduce(0, +)
+      for (i, tooth) in possibleTeeth.enumerated() {
+        currentCost += 1
+        currentCost -= edgeCost(tooth) * 2  // Turn the positive into a negative
+        if i % 2 == 0 && 1 - currentCost > Epsilon {
+          results.append(
+            (
               handle: handle,
               teeth: Set(possibleTeeth[...i])
-            ))
-          }
+            )
+          )
         }
       }
     }
@@ -145,8 +143,7 @@ extension Graph {
     switch Simplex.minimize(
       objective: objective,
       constraints: constraints,
-      pivotRule: .greedyThenBland(10000),
-      refactorInterval: 50
+      pivotRule: .greedyThenBland(200)
     ) {
     case .unbounded:
       fatalError("solution should not be unbounded")
@@ -160,14 +157,17 @@ extension Graph {
     assert(solution.count >= edges.count)
 
     let cuts = findBadCuts { edge in solution[edgeToIdx[edge]!] }
+    let nonIntegerCount = solution.count { min($0, 1 - $0) > Epsilon }
     let violatedBlossom: [(handle: Set<V>, teeth: Set<Edge<V>>)] =
-      if !cuts.isEmpty || solution.allSatisfy({ min($0, 1 - $0) < Epsilon }) {
+      if !cuts.isEmpty || nonIntegerCount == 0 {
         []
       } else {
         findViolatedBlossom(edgeCost: { edge in solution[edgeToIdx[edge]!] })
       }
 
-    logFn?("solved LP: cycles=\(cuts.count) blossom=\(violatedBlossom.count) cost=\(cost)")
+    logFn?(
+      "solved LP: cycles=\(cuts.count) blossom=\(violatedBlossom.count) fractional=\(nonIntegerCount) cost=\(cost)"
+    )
 
     if cuts.isEmpty && violatedBlossom.isEmpty {
       return .solved(solution, cost)
