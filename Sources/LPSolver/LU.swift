@@ -1,17 +1,17 @@
 import Accelerate
 
-internal enum LUFactorizationResult {
+public enum LUFactorizationResult {
   case success(LUFactorization)
   case singular(Int)
 }
 
-internal struct LUFactorization {
+public struct LUFactorization {
   let rows: Int
   let cols: Int
   var values: [Double]
   var pivots: [__CLPK_integer]
 
-  mutating func apply(_ mat: inout ColMajorMatrix) {
+  public mutating func apply(_ mat: inout ColMajorMatrix) {
     var nrhs = __CLPK_integer(mat.cols)
     var ldb = __CLPK_integer(mat.rows)
     var lda = __CLPK_integer(cols)
@@ -23,18 +23,18 @@ internal struct LUFactorization {
   }
 }
 
-internal struct ColMajorMatrix {
-  let rows: Int
-  let cols: Int
+public struct ColMajorMatrix {
+  public let rows: Int
+  public let cols: Int
   var values: [Double]
 
-  init(rows: Int, cols: Int) {
+  public init(rows: Int, cols: Int) {
     self.rows = rows
     self.cols = cols
     self.values = [Double](repeating: 0, count: rows * cols)
   }
 
-  subscript(_ row: Int, _ col: Int) -> Double {
+  public subscript(_ row: Int, _ col: Int) -> Double {
     get {
       assert(row >= 0 && row < rows && col >= 0 && col < cols)
       return values[row + col * rows]
@@ -45,7 +45,7 @@ internal struct ColMajorMatrix {
     }
   }
 
-  func lu() -> LUFactorizationResult {
+  public func lu() -> LUFactorizationResult {
     var newValues = values
     // Compute LU factorization
     var n1 = __CLPK_integer(rows)

@@ -2,96 +2,20 @@ import Accelerate
 
 private let Epsilon: Double = 1e-8
 
-internal class Simplex {
-  internal enum PivotRule {
+public class Simplex {
+
+  public enum PivotRule: Sendable {
     case greedy
     case bland
     case devex
     case greedyThenBland(Int)
   }
 
-  internal protocol Constraint {
-    func coeffs() -> [Double]
-    func equals() -> Double
-  }
-
-  internal struct DenseConstraint: Constraint {
-    let rawCoeffs: [Double]
-    let rawEquals: Double
-
-    init(coeffs: [Double], equals: Double) {
-      rawCoeffs = coeffs
-      rawEquals = equals
-    }
-
-    func setting(_ idx: Int, equalTo: Double) -> Self {
-      assert(idx > 0 && idx < rawCoeffs.count, "constraint setting argument out of bounds")
-      let newCoeffs = Array(rawCoeffs[..<idx] + rawCoeffs[(idx + 1)...])
-      let newEquals = rawEquals - rawCoeffs[idx] * equalTo
-      return .init(coeffs: newCoeffs, equals: newEquals)
-    }
-
-    func coeffs() -> [Double] {
-      rawCoeffs
-    }
-
-    func equals() -> Double {
-      rawEquals
-    }
-  }
-
-  internal struct SparseConstraint: Constraint {
-    let coeffCount: Int
-    let coeffMap: [Int: Double]
-    let rawEquals: Double
-
-    init(coeffCount: Int, coeffMap: [Int: Double], equals: Double) {
-      self.coeffCount = coeffCount
-      self.coeffMap = coeffMap
-      self.rawEquals = equals
-    }
-
-    func setting(_ idx: Int, equalTo: Double) -> Self {
-      assert(idx > 0 && idx < coeffCount, "constraint setting argument out of bounds")
-      let newCoeffs = Dictionary(
-        uniqueKeysWithValues: coeffMap.compactMap { iv in
-          if iv.0 < idx {
-            iv
-          } else if iv.0 == idx {
-            nil
-          } else {
-            (iv.0 - 1, iv.1)
-          }
-        })
-      let newEquals = rawEquals - coeffMap[idx, default: 0] * equalTo
-      return .init(coeffCount: coeffCount - 1, coeffMap: newCoeffs, equals: newEquals)
-    }
-
-    func addZeroCoeff() -> Self {
-      .init(coeffCount: coeffCount + 1, coeffMap: coeffMap, equals: rawEquals)
-    }
-
-    func coeffs() -> [Double] {
-      var result = [Double](repeating: 0, count: coeffCount)
-      for (i, x) in coeffMap {
-        result[i] = x
-      }
-      return result
-    }
-
-    func equals() -> Double {
-      rawEquals
-    }
-  }
-
-  internal enum Solution {
-    case solved(solution: [Double], cost: Double)
-    case unbounded
-    case infeasible
-  }
-
   /// Minimize an objective subject to equality constraints.
-  internal static func minimize<C: Constraint>(
+  ///
+  /// If a basic set is specified, it will be pivoted to at the start of
+  /// stage 1. Only use this if you know these can form a feasible solution.
+  public static func minimize<C: Constraint>(
     objective: [Double],
     constraints: [C],
     basic: Set<Int> = [],
@@ -323,12 +247,14 @@ internal class Simplex {
     }
 
     private mutating func choosePivot(pivotRule: PivotRule) -> Pivot {
+      let unusable = Set(basicCols)
+      let usable = (0..<(cols - 1)).filter { !unusable.contains($0) }
       let entering: Int? =
         switch pivotRule {
         case .bland:
-          (0..<(cols - 1)).first(where: { self[-1, $0] < -Epsilon })
+          usable.first(where: { self[-1, $0] < -Epsilon })
         case .greedy:
-          (0..<(cols - 1))
+          usable
             .filter { self[-1, $0] < -Epsilon }
             .min { self[-1, $0] < self[-1, $1] }
         case .devex:
@@ -336,7 +262,8 @@ internal class Simplex {
             if devexCoeffs == nil {
               devexCoeffs = [Double](repeating: 1, count: cols - 1)
             }
-            return (0..<(cols - 1))
+            return
+              usable
               .filter { self[-1, $0] < -Epsilon }
               .max {
                 abs(self[-1, $0]) / devexCoeffs![$0].squareRoot() < abs(self[-1, $1])
@@ -350,9 +277,10 @@ internal class Simplex {
                 && costHistory[costHistory.count - stallStepCount] <= costHistory.last!)
             {
               switchedToBland = true
-              return (0..<(cols - 1)).first(where: { self[-1, $0] < -Epsilon })
+              return usable.first(where: { self[-1, $0] < -Epsilon })
             } else {
-              return (0..<(cols - 1))
+              return
+                usable
                 .filter { self[-1, $0] < -Epsilon }
                 .min { self[-1, $0] < self[-1, $1] }
             }
@@ -374,11 +302,16 @@ internal class Simplex {
       var minRatio = Double.infinity
       var candidateCol = Int.max
 
+      var maxGuy: Double = 0
       for i in 0..<(rows - 1) {
         let coeff = self[i, entering]
-        if coeff > Epsilon {
-          let rhs = self[i, -1]
+        maxGuy = max(maxGuy, coeff)
+        let rhs = self[i, -1]
+        if coeff > Epsilon && rhs > -Epsilon || (coeff < -Epsilon && rhs < -Epsilon) {
           let ratio = rhs / coeff
+          if ratio < -Epsilon {
+            continue
+          }
           if ratio < minRatio - Epsilon
             || (abs(ratio - minRatio) <= Epsilon && basicCols[i] < candidateCol)
           {
@@ -387,7 +320,6 @@ internal class Simplex {
           }
         }
       }
-
       return candidateCol == Int.max ? nil : candidateCol
     }
 
@@ -429,25 +361,6 @@ internal class Simplex {
         &values,  // output matrix
         Int32(cols)  // stride of output matrix
       )
-
-      clipRHS()
-      fillIdentityColumn(col: entering, rowWithOne: row)
-    }
-
-    private mutating func clipRHS() {
-      for row in 0..<(rows - 1) {
-        self[row, -1] = max(0, self[row, -1])
-      }
-    }
-
-    private mutating func fillIdentityColumn(col: Int, rowWithOne: Int) {
-      for i in 0..<rows {
-        if i == rowWithOne {
-          self[i, col] = 1
-        } else {
-          self[i, col] = 0
-        }
-      }
     }
 
     private mutating func scale(row: Int, by: Double) {
@@ -567,9 +480,6 @@ internal class Simplex {
         self[-1, i] = original[-1, i]
       }
       eliminateBasicCosts()
-
-      // Deal with rounding error of LU factorization.
-      clipRHS()
     }
   }
 }

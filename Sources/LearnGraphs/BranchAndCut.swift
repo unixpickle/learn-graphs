@@ -1,3 +1,5 @@
+import LPSolver
+
 private let Epsilon = 1e-5
 
 extension Graph {
@@ -9,7 +11,7 @@ extension Graph {
 
   private struct SearchNode {
     let forcedEdges: Set<ForcedEdge>
-    var constraints: [Simplex.SparseConstraint]
+    var constraints: [SparseConstraint]
     var costLowerBound: Double
     var solution: [Double]?
 
@@ -27,9 +29,13 @@ extension Graph {
   /// The graph must be fully connected.
   ///
   /// The path will always begin and end at the same place.
-  public func branchAndCutTSP(edgeCost: (Edge<V>) -> Double, logFn: ((String) -> Void)? = nil)
+  public func branchAndCutTSP(
+    edgeCost: (Edge<V>) -> Double, solver: LPSolver? = nil, logFn: ((String) -> Void)? = nil
+  )
     -> [V]
   {
+    let solver = solver ?? SimplexLPSolver(pivotRule: .greedyThenBland(200))
+
     if vertices.count == 0 {
       return []
     } else if vertices.count == 1 {
@@ -46,10 +52,11 @@ extension Graph {
       for edge in edgesAt(vertex: vertex) {
         coeffs[edgeToIdx[edge]!] = 1.0
       }
-      return Simplex.SparseConstraint(coeffCount: edges.count, coeffMap: coeffs, equals: 2.0)
+      return SparseConstraint(coeffCount: edges.count, coeffMap: coeffs, equals: 2.0)
     }
 
     let best = branchAndCut(
+      solver: solver,
       edges: edges,
       edgeCost: edgeCost,
       constraints: constraints,
@@ -77,17 +84,15 @@ extension Graph {
       return overweightEdges.map { $0.vertices }
     }
 
-    let (cutVerts, _, cutCost) = minCostCut(edgeCost: edgeCost)
-    if cutCost >= 2 - Epsilon {
-      return []
+    let g = Graph(vertices: vertices, edges: edgeSet.filter { edgeCost($0) > Epsilon })
+    let tree = g.gomoryHuTree(edgeCost: edgeCost)
+    var result: [Set<V>] = []
+    for (cut, _, cost) in tree.cuts() {
+      if cost < 2 - Epsilon {
+        result.append(cut)
+      }
     }
-    if cutCost > Epsilon {
-      return [cutVerts]
-    }
-    // We have a disjoint component, so we should explore sub-cuts.
-    var g1 = self
-    let (g2, _) = g1.cut(vertices: cutVerts)
-    return [cutVerts] + g1.findBadCuts(edgeCost: edgeCost) + g2.findBadCuts(edgeCost: edgeCost)
+    return result
   }
 
   private func findViolatedBlossom(edgeCost: (Edge<V>) -> Double) -> [(
@@ -109,7 +114,7 @@ extension Graph {
       for (i, tooth) in possibleTeeth.enumerated() {
         currentCost += 1
         currentCost -= edgeCost(tooth) * 2  // Turn the positive into a negative
-        if i % 2 == 0 && 1 - currentCost > Epsilon {
+        if i > 0 && i % 2 == 0 && 1 - currentCost > Epsilon {
           results.append(
             (
               handle: handle,
@@ -130,9 +135,10 @@ extension Graph {
   }
 
   private func solveWithoutCycles(
+    solver: LPSolver,
     edges: [Edge<V>],
     edgeCost: [Double],
-    constraints: inout [Simplex.SparseConstraint],
+    constraints: inout [SparseConstraint],
     logFn: ((String) -> Void)?
   ) -> SolveResult {
     let varCount = constraints.first!.coeffCount
@@ -140,11 +146,7 @@ extension Graph {
     var objective: [Double] = edgeCost + [Double](repeating: 0, count: extra)
     let edgeToIdx = Dictionary(uniqueKeysWithValues: edges.enumerated().map { ($0.1, $0.0) })
     var (solution, cost): ([Double], Double)
-    switch Simplex.minimize(
-      objective: objective,
-      constraints: constraints,
-      pivotRule: .greedyThenBland(200)
-    ) {
+    switch solver.minimize(objective: objective, constraints: constraints) {
     case .unbounded:
       fatalError("solution should not be unbounded")
     case .infeasible:
@@ -157,7 +159,7 @@ extension Graph {
     assert(solution.count >= edges.count)
 
     let cuts = findBadCuts { edge in solution[edgeToIdx[edge]!] }
-    let nonIntegerCount = solution.count { min($0, 1 - $0) > Epsilon }
+    let nonIntegerCount = solution[..<edges.count].count { min($0, 1 - $0) > Epsilon }
     let violatedBlossom: [(handle: Set<V>, teeth: Set<Edge<V>>)] =
       if !cuts.isEmpty || nonIntegerCount == 0 {
         []
@@ -207,7 +209,7 @@ extension Graph {
       for edge in teeth {
         coeffs[edgeToIdx[edge]!] = -1.0
       }
-      coeffs[slackVarIdx] = 1
+      coeffs[slackVarIdx] = -1
       constraints.append(
         .init(coeffCount: slackVarIdx + 1, coeffMap: coeffs, equals: 1.0 - Double(teeth.count))
       )
@@ -217,9 +219,10 @@ extension Graph {
   }
 
   private func branchAndCut(
+    solver: LPSolver,
     edges: [Edge<V>],
     edgeCost: [Double],
-    constraints: [Simplex.SparseConstraint],
+    constraints: [SparseConstraint],
     logFn: ((String) -> Void)?
   ) -> Set<Edge<V>> {
     let edgeToIdx = Dictionary(uniqueKeysWithValues: edges.enumerated().map { ($0.1, $0.0) })
@@ -245,7 +248,7 @@ extension Graph {
       newForced.insert(ForcedEdge(edge: edge, value: value))
       var newConstraints = sn.constraints
       newConstraints.append(
-        Simplex.SparseConstraint(
+        SparseConstraint(
           coeffCount: newConstraints[0].coeffCount,
           coeffMap: [edgeToIdx[edge]!: 1.0],
           equals: value ? 1 : 0
@@ -266,6 +269,7 @@ extension Graph {
         // This node hasn't been solved yet; we may need re-insert it
         var feasible = true
         switch solveWithoutCycles(
+          solver: solver,
           edges: edges,
           edgeCost: edgeCost,
           constraints: &next.constraints,

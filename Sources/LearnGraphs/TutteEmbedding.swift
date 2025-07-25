@@ -1,3 +1,5 @@
+import LPSolver
+
 extension Graph {
   /// Compute a 2-D embedding of the graph if the graph is planar and
   /// triconnected.

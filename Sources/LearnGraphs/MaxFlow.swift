@@ -1,3 +1,5 @@
+import LPSolver
+
 public struct Flow<V: Hashable, C> where C: Comparable, C: AdditiveArithmetic {
   /// Flows from each vertex into each neighboring vertex.
   public var flows: [V: [V: C]]
@@ -58,9 +60,12 @@ extension Graph {
     }
   }
 
-  private func maxFlowLP(from source: V, to destination: V, capacity: (V, V) -> Double) -> Flow<
+  private func maxFlowLP(
+    from source: V, to destination: V, solver: LPSolver? = nil, capacity: (V, V) -> Double
+  ) -> Flow<
     V, Double
   > {
+    let solver = solver ?? SimplexLPSolver()
     let dirEdges = edgeSet.flatMap { edge in
       let vs = Array(edge.vertices)
       return [
@@ -75,7 +80,7 @@ extension Graph {
     )
     let edgeToIdx = Dictionary(uniqueKeysWithValues: dirEdges.enumerated().map { ($0.1, $0.0) })
 
-    var constraints = [Simplex.SparseConstraint]()
+    var constraints = [SparseConstraint]()
 
     // One slack variable per edge, plus a slack variable for
     // the source and sink
@@ -87,7 +92,7 @@ extension Graph {
     for (i, dirEdge) in dirEdges.enumerated() {
       let slackIdx = dirEdges.count + i
       constraints.append(
-        Simplex.SparseConstraint(
+        SparseConstraint(
           coeffCount: varCount,
           coeffMap: [i: 1, slackIdx: 1],
           equals: edgeCapacity[dirEdge]!
@@ -110,15 +115,17 @@ extension Graph {
         coeffs[sinkVar] = 1.0
       }
       constraints.append(
-        Simplex.SparseConstraint(coeffCount: varCount, coeffMap: coeffs, equals: 0)
+        SparseConstraint(coeffCount: varCount, coeffMap: coeffs, equals: 0)
       )
     }
 
     var objective = [Double](repeating: 0, count: varCount)
     objective[sourceVar] = -1.0
     guard
-      case .solved(let solution, _) = Simplex.minimize(
-        objective: objective, constraints: constraints)
+      case .solved(let solution, _) = solver.minimize(
+        objective: objective,
+        constraints: constraints
+      )
     else {
       fatalError()
     }

@@ -12,13 +12,26 @@ let package = Package(
   dependencies: [],
   targets: [
     .target(
-      name: "LearnGraphs",
+      name: "LPSolver",
       dependencies: []
+    ),
+    .target(
+      name: "LearnGraphs",
+      dependencies: ["LPSolver"]
     ),
     .testTarget(
       name: "LearnGraphsTests",
       dependencies: [
         "LearnGraphs"
+      ],
+      swiftSettings: [
+        .enableExperimentalFeature("Testing")
+      ]
+    ),
+    .testTarget(
+      name: "LPSolverTests",
+      dependencies: [
+        "LPSolver"
       ],
       swiftSettings: [
         .enableExperimentalFeature("Testing")
