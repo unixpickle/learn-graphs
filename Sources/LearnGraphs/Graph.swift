@@ -114,6 +114,15 @@ public struct Graph<V: Hashable>: Hashable {
     return insertEdge(items[0], items[1])
   }
 
+  public mutating func insert(graph: Graph<V>) {
+    for v in graph.vertices {
+      insert(vertex: v)
+    }
+    for e in graph.edgeSet {
+      insert(edge: e)
+    }
+  }
+
   public func neighbors(vertex: V) -> Set<V> {
     adjacencies[vertex] ?? Set()
   }
