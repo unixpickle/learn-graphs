@@ -81,6 +81,20 @@ func testTreeDecompositionGrid(algorithm: TreeDecompositionAlgorithm) {
   testValidDecomp(graph: g, tree: tree)
 }
 
+@Test(arguments: [TreeDecompositionAlgorithm.arnborg])
+func testTreeDecompositionRandomKTree(algorithm: TreeDecompositionAlgorithm) {
+  for (count, k) in [(30, 3), (5, 4)] {
+    for _ in 0..<count {
+      let g = Graph(randomKTree: 0..<10, k: k, deleteProb: 0.1)
+      let maybeTree = g.treeDecomposition(algorithm: algorithm, maxTreewidth: k)
+      #expect(maybeTree != nil, "tree could not be found")
+      guard let tree = maybeTree else { return }
+      #expect(getTreeWidth(tree) <= k)
+      testValidDecomp(graph: g, tree: tree)
+    }
+  }
+}
+
 func getTreeWidth<V>(_ g: Graph<TreeDecompositionBag<V>>) -> Int {
   g.vertices.map { $0.bag.count - 1 }.reduce(0, max)
 }

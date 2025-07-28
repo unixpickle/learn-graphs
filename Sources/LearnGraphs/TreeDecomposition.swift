@@ -111,6 +111,7 @@ extension Graph {
           let relevantClasses = classes[..<i].filter {
             clsToTree[$0] != nil
               && $0.separator.allSatisfy(allowedSeparator.contains)
+              && $0.separator.contains(v)
               && $0.vertices.allSatisfy(cls.component.union($0.separator).contains)
           }
           let covered = Set(relevantClasses.flatMap { x in x.vertices })
