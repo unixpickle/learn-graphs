@@ -34,6 +34,7 @@ func testTreeDecompositionCycle(algorithm: TreeDecompositionAlgorithm) {
     guard let tree = maybeTree else { return }
     #expect(getTreeWidth(tree) == 2)
     testValidDecomp(graph: g, tree: tree)
+    testCreateNiceDecomp(graph: g, tree: tree)
   }
 }
 
@@ -53,6 +54,7 @@ func testTreeDecompositionExample(algorithm: TreeDecompositionAlgorithm) {
   guard let tree = maybeTree else { return }
   #expect(getTreeWidth(tree) == 2)
   testValidDecomp(graph: g, tree: tree)
+  testCreateNiceDecomp(graph: g, tree: tree)
 }
 
 @Test(arguments: [TreeDecompositionAlgorithm.arnborg])
@@ -79,6 +81,7 @@ func testTreeDecompositionGrid(algorithm: TreeDecompositionAlgorithm) {
   guard let tree = maybeTree else { return }
   #expect(getTreeWidth(tree) == 3)
   testValidDecomp(graph: g, tree: tree)
+  testCreateNiceDecomp(graph: g, tree: tree)
 }
 
 @Test(arguments: [TreeDecompositionAlgorithm.arnborg])
@@ -91,6 +94,7 @@ func testTreeDecompositionRandomKTree(algorithm: TreeDecompositionAlgorithm) {
       guard let tree = maybeTree else { return }
       #expect(getTreeWidth(tree) <= k)
       testValidDecomp(graph: g, tree: tree)
+      testCreateNiceDecomp(graph: g, tree: tree)
     }
   }
 }
@@ -117,4 +121,32 @@ func testValidDecomp<V>(graph g: Graph<V>, tree decomp: Graph<TreeDecompositionB
       "node \(v) is part of \(subset.components().count) components in tree"
     )
   }
+}
+
+func testCreateNiceDecomp<V>(graph g: Graph<V>, tree decomp: Graph<TreeDecompositionBag<V>>) {
+  let nice = NiceTreeDecomposition(tree: decomp)
+  testValidDecomp(graph: g, tree: nice.tree)
+
+  func testChildrenParents(node: TreeDecompositionBag<V>, parent: TreeDecompositionBag<V>? = nil) {
+    #expect(nice.parent[node] == parent)
+    let neighbors = nice.tree.neighbors(vertex: node)
+    switch neighbors.count - (parent == nil ? 0 : 1) {
+    case 0:
+      #expect(nice.op[node]!.isLeaf)
+    case 1:
+      #expect(!nice.op[node]!.isJoin && !nice.op[node]!.isLeaf)
+    case 2:
+      #expect(nice.op[node]!.isJoin)
+    default:
+      fatalError("tree must be binary")
+    }
+    for n in neighbors {
+      if n == parent {
+        continue
+      }
+      testChildrenParents(node: n, parent: node)
+    }
+  }
+
+  testChildrenParents(node: nice.root)
 }

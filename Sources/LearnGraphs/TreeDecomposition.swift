@@ -10,6 +10,110 @@ public class TreeDecompositionBag<V: Hashable>: PointerHasher, CustomStringConve
   }
 }
 
+public class NiceTreeDecomposition<V: Hashable> {
+
+  public indirect enum NodeOp {
+    case leaf(V)
+    case introduce(V)
+    case forget(V)
+    case join(TreeDecompositionBag<V>, TreeDecompositionBag<V>)
+
+    var isLeaf: Bool {
+      if case .leaf(_) = self {
+        true
+      } else {
+        false
+      }
+    }
+
+    var isJoin: Bool {
+      if case .join(_, _) = self {
+        true
+      } else {
+        false
+      }
+    }
+  }
+
+  public let root: TreeDecompositionBag<V>
+  public let tree: Graph<TreeDecompositionBag<V>>
+  public let parent: [TreeDecompositionBag<V>: TreeDecompositionBag<V>]
+  public let op: [TreeDecompositionBag<V>: NodeOp]
+
+  /// Turn a tree into a nice tree.
+  ///
+  /// Raises an error if the supplied graph is not actually a tree.
+  public init(tree g: Graph<TreeDecompositionBag<V>>) {
+    root = g.vertices.max { $0.bag.count < $1.bag.count }!
+    guard let (_, children) = g.asTree(root: root) else {
+      fatalError("the passed graph is not a tree")
+    }
+
+    var tree = Graph<TreeDecompositionBag<V>>(vertices: [root])
+    var parent = [TreeDecompositionBag<V>: TreeDecompositionBag<V>]()
+    var op = [TreeDecompositionBag<V>: NodeOp]()
+
+    var queue = [(root, children[root, default: []])]
+    while let (next, nextChildren) = queue.popLast() {
+      if nextChildren.count > 1 {
+        let child1 = TreeDecompositionBag<V>(bag: next.bag)
+        let child2 = TreeDecompositionBag<V>(bag: next.bag)
+        tree.insert(vertex: child1)
+        tree.insert(vertex: child2)
+        tree.insertEdge(next, child1)
+        tree.insertEdge(next, child2)
+        op[next] = .join(child1, child2)
+        parent[child1] = next
+        parent[child2] = next
+
+        let ch = Array(nextChildren)
+        queue.append((child1, Set(ch[..<(ch.count / 2)])))
+        queue.append((child2, Set(ch[(ch.count / 2)...])))
+      } else if nextChildren.count == 1 {
+        let child = nextChildren.first!
+        if let introduced = next.bag.subtracting(child.bag).first {
+          let newChild = TreeDecompositionBag<V>(bag: next.bag.subtracting([introduced]))
+          tree.insert(vertex: newChild)
+          tree.insertEdge(next, newChild)
+          op[next] = .introduce(introduced)
+          parent[newChild] = next
+          queue.append((newChild, [child]))
+        } else if let removed = child.bag.subtracting(next.bag).first {
+          let newChild = TreeDecompositionBag<V>(bag: next.bag.union([removed]))
+          tree.insert(vertex: newChild)
+          tree.insertEdge(next, newChild)
+          op[next] = .forget(removed)
+          parent[newChild] = next
+          queue.append((newChild, [child]))
+        } else {
+          // We have reached an identical parent to the child, so we can now
+          // skip the child in the resulting tree.
+          queue.append((next, children[child, default: []]))
+        }
+      } else {
+        assert(nextChildren.isEmpty)
+        if next.bag.count == 1 {
+          op[next] = .leaf(next.bag.first!)
+        } else {
+          let first = next.bag.first!
+          let rest = next.bag.subtracting([first])
+          let child = TreeDecompositionBag<V>(bag: rest)
+          tree.insert(vertex: child)
+          tree.insertEdge(next, child)
+          parent[child] = next
+          op[next] = .introduce(first)
+          queue.append((child, []))
+        }
+      }
+    }
+
+    self.tree = tree
+    self.parent = parent
+    self.op = op
+  }
+
+}
+
 public enum TreeDecompositionAlgorithm: Sendable {
   /// A dynamic programming brute force technique based on separators.
   case arnborg
