@@ -22,3 +22,30 @@ func testComponentsCycle() {
   }
   #expect(graph.components() == [graph])
 }
+
+@Test
+func testArticulationAndBridges() {
+  for _ in 0..<50 {
+    let g = Graph(random: 0..<20, edgeProb: 0.1)
+    let (actualArt, actualBridge) = g.articulationAndBridges()
+    let (expArt, expBridge) = bruteForceArticulationAndBridges(g)
+    #expect(actualArt == expArt)
+    #expect(actualBridge == expBridge)
+  }
+}
+
+func bruteForceArticulationAndBridges<V: Hashable>(_ g: Graph<V>) -> (Set<V>, Set<Edge<V>>) {
+  let compCount = g.components().count
+  return (
+    g.vertices.filter { v in
+      var g1 = g
+      g1.remove(vertex: v)
+      return g1.components().count > compCount
+    },
+    g.edgeSet.filter { e in
+      var g1 = g
+      g1.remove(edge: e)
+      return g1.components().count > compCount
+    }
+  )
+}
