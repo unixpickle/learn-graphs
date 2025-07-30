@@ -112,6 +112,10 @@ public class NiceTreeDecomposition<V: Hashable> {
     self.op = op
   }
 
+  public func children(vertex: TreeDecompositionBag<V>) -> Set<TreeDecompositionBag<V>> {
+    Set(tree.neighbors(vertex: vertex).filter { $0 != parent[vertex] })
+  }
+
 }
 
 public enum TreeDecompositionAlgorithm: Sendable {
@@ -175,6 +179,8 @@ extension Graph {
     var vertices: Set<V> { separator.union(component) }
   }
 
+  /// Compute a tree decomposition, based on the paper
+  /// "Complexity of Finding Embeddings in a k-tree" (Arnborg et al.)
   public func arnborgTreeDecomposition(separatorSize: Int) -> Graph<TreeDecompositionBag<V>>? {
     if vertices.count <= separatorSize + 1 {
       return .init(vertices: [.init(bag: vertices)])
