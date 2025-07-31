@@ -76,9 +76,27 @@ public struct Graph<V: Hashable>: Hashable {
   }
 
   @discardableResult
+  public mutating func remove<C: Collection<V>>(vertices: C) -> Bool {
+    var removed = false
+    for v in vertices {
+      removed = remove(vertex: v) || removed
+    }
+    return removed
+  }
+
+  @discardableResult
   public mutating func remove(edge: Edge<V>) -> Bool {
     let vs = Array(edge.vertices)
     return removeEdge(vs[0], vs[1])
+  }
+
+  @discardableResult
+  public mutating func remove<C: Collection<Edge<V>>>(edges: C) -> Bool {
+    var removed = false
+    for e in edges {
+      removed = remove(edge: e) || removed
+    }
+    return removed
   }
 
   @discardableResult

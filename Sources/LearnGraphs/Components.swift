@@ -5,15 +5,31 @@ extension Graph {
   /// If the graph is empty, this returns a single empty graph in the list.
   public func components() -> [Graph] {
     if vertices.isEmpty {
-      [self]
-    } else {
-      contractionGroups(edges: edgeSet, includeSingle: true).map { chop in
-        Graph(
-          vertices: chop,
-          adjacencies: Dictionary(uniqueKeysWithValues: adjacencies.filter { chop.contains($0.0) })
-        )
+      return [self]
+    }
+    var remainder = self
+    var result = [Graph]()
+    while let start = remainder.vertices.first {
+      let subgraph = remainder.reachableFrom(vertex: start)
+      result.append(subgraph)
+      remainder.remove(vertices: subgraph.vertices)
+    }
+    return result
+  }
+
+  /// Get the subgraph that is reachable from a vertex.
+  public func reachableFrom(vertex: V) -> Graph {
+    var resultVertices: Set<V> = [vertex]
+    var queue = [vertex]
+    while let next = queue.popLast() {
+      for v in neighbors(vertex: next) {
+        if !resultVertices.contains(v) {
+          resultVertices.insert(v)
+          queue.append(v)
+        }
       }
     }
+    return filteringVertices(resultVertices.contains)
   }
 
   private enum TarjanStep {
