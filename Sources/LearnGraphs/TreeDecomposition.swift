@@ -186,7 +186,7 @@ extension Graph {
       return .init(vertices: [.init(bag: vertices)])
     }
 
-    let separators = allSeparators(maxSize: separatorSize)
+    let separators = separators(maxSize: separatorSize)
 
     var sepToClass = [Set<V>: [ArnborgSeparatorClass]]()
     var clsToTree = [
@@ -287,33 +287,6 @@ extension Graph {
       }
     }
     return nil
-  }
-
-  private func allSeparators(maxSize: Int) -> [Set<V>] {
-    (1...maxSize).flatMap { allVertexSubsets(size: $0) }.filter { sep in
-      var newG = self
-      for v in sep {
-        newG.remove(vertex: v)
-      }
-      return newG.vertices.count == 0 || newG.components().count > 1
-    }
-  }
-
-  private func allVertexSubsets(size: Int) -> [Set<V>] {
-    if size == 1 {
-      return vertices.map { Set([$0]) }
-    } else if size == 0 {
-      return [[]]
-    }
-
-    let smallerSubsets = allVertexSubsets(size: size - 1)
-
-    var results: Set<Set<V>> = []
-    for v in vertices {
-      results.formUnion(smallerSubsets.filter { !$0.contains(v) }.map { $0.union([v]) })
-    }
-
-    return Array(results)
   }
 
 }

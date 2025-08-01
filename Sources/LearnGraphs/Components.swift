@@ -17,8 +17,32 @@ extension Graph {
     return result
   }
 
+  /// Get the number of connected components.
+  ///
+  /// Returns 1 if the graph is empty.
+  public func componentCount() -> Int {
+    if vertices.isEmpty {
+      return 1
+    }
+
+    var result = 0
+    var uncovered = vertices
+    while let next = uncovered.popFirst() {
+      for x in reachableVerticesFrom(vertex: next) {
+        uncovered.remove(x)
+      }
+      result += 1
+    }
+    return result
+  }
+
   /// Get the subgraph that is reachable from a vertex.
   public func reachableFrom(vertex: V) -> Graph {
+    return filteringVertices(reachableVerticesFrom(vertex: vertex).contains)
+  }
+
+  /// Get the vertices that are reachable from a starting vertex.
+  private func reachableVerticesFrom(vertex: V) -> Set<V> {
     var resultVertices: Set<V> = [vertex]
     var queue = [vertex]
     while let next = queue.popLast() {
@@ -29,7 +53,7 @@ extension Graph {
         }
       }
     }
-    return filteringVertices(resultVertices.contains)
+    return resultVertices
   }
 
   private enum TarjanStep {
@@ -99,6 +123,40 @@ extension Graph {
       }
     }
     return (articulation, bridges)
+  }
+
+  /// Get all sets of vertices with at most size at most maxSize such that the
+  /// graph is split into at least two separate components when removing the
+  /// vertices in the set.
+  ///
+  /// Note that this does not only return minimal separators, but rather every
+  /// single separator. So, for example, if the graph already has more than one
+  /// component, then every possible subset is returned.
+  public func separators(maxSize: Int) -> [Set<V>] {
+    (1...maxSize).flatMap { allVertexSubsets(size: $0) }.filter { sep in
+      var newG = self
+      for v in sep {
+        newG.remove(vertex: v)
+      }
+      return newG.vertices.count == 0 || newG.componentCount() > 1
+    }
+  }
+
+  private func allVertexSubsets(size: Int) -> [Set<V>] {
+    if size == 1 {
+      return vertices.map { Set([$0]) }
+    } else if size == 0 {
+      return [[]]
+    }
+
+    let smallerSubsets = allVertexSubsets(size: size - 1)
+
+    var results: Set<Set<V>> = []
+    for v in vertices {
+      results.formUnion(smallerSubsets.filter { !$0.contains(v) }.map { $0.union([v]) })
+    }
+
+    return Array(results)
   }
 
 }
