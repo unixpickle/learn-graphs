@@ -1,82 +1,3 @@
-private class LinkedList<V> {
-  class Node {
-    let data: V
-    var next: Node? = nil
-    var prev: Node? = nil
-
-    init(data: V) {
-      self.data = data
-    }
-  }
-
-  var isEmpty: Bool {
-    first == nil
-  }
-
-  var count: Int = 0
-  var first: Node? = nil
-  var last: Node? = nil
-
-  public init(_ item: V) {
-    first = Node(data: item)
-    last = first
-  }
-
-  func insert(data: V) {
-    count += 1
-    let node = Node(data: data)
-    if let f = first {
-      f.prev = node
-      node.next = f
-      first = node
-    } else {
-      first = node
-      last = node
-    }
-  }
-
-  func join(other: LinkedList) {
-    if other.isEmpty {
-      return
-    }
-    if let l = last {
-      l.next = other.first
-      other.first!.prev = l
-      last = other.last
-    } else {
-      first = other.first
-      last = other.last
-    }
-    other.first = nil
-    other.last = nil
-    other.count = 0
-  }
-
-  func array() -> [V] {
-    var next = first
-    var result = [V]()
-    while let x = next {
-      result.append(x.data)
-      next = x.next
-    }
-    return result
-  }
-
-  func clear() {
-    last = nil
-    // Free circular references.
-    while let x = first {
-      first = x.next
-      x.next = nil
-      x.prev = nil
-    }
-  }
-
-  deinit {
-    clear()
-  }
-}
-
 public class ContractedVertex<V>: PointerHasher where V: Hashable {
   public let vertices: Set<V>
 
@@ -130,55 +51,16 @@ extension Graph {
   /// a singleton set if includeSingle is true.
   public func contractionGroups<C>(edges e: C, includeSingle: Bool) -> [Set<V>]
   where C: Collection<Edge<V>> {
-    var v2vs = [V: LinkedList<V>]()
-    for contractEdge in e {
-      let vs: [LinkedList<V>] = contractEdge.vertices.map { v in
-        if let result = v2vs[v] {
-          return result
-        } else {
-          let x: LinkedList<V> = .init(v)
-          v2vs[v] = x
-          return x
-        }
-      }
-      var keepList = vs[0]
-      var deleteList = vs[1]
-
-      if keepList === deleteList {
-        continue
-      } else if deleteList.count > keepList.count {
-        // Minimize the number of entries in v2vs that we have to update
-        swap(&keepList, &deleteList)
-      }
-
-      // Point all vertices that pointed to deleteList to keepList.
-      for item in deleteList.array() {
-        v2vs[item] = keepList
-      }
-
-      // Move deleteList items into keepList.
-      keepList.join(other: deleteList)
+    var ds = DisjointSet(vertices)
+    for edge in e {
+      let vs = Array(edge.vertices)
+      ds.union(vs[0], vs[1])
     }
-
-    var result = [ObjectIdentifier: Set<V>]()
-    for item in v2vs.values {
-      let id = ObjectIdentifier(item)
-      if result[id] == nil {
-        result[id] = Set(item.array())
-      }
-    }
-
-    var resultArray = Array(result.values)
     if includeSingle {
-      let included = Set(resultArray.flatMap { $0 })
-      for v in vertices {
-        if !included.contains(v) {
-          resultArray.append([v])
-        }
-      }
+      return ds.sets()
+    } else {
+      return ds.sets().filter { $0.count > 1 }
     }
-
-    return resultArray
   }
 
 }
