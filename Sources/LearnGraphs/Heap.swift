@@ -64,6 +64,7 @@ internal struct PriorityQueue<T: Hashable, P: Comparable> {
     upHeap(count - 1)
   }
 
+  /// Get and remove the item with the highest priority.
   mutating func pop() -> (item: T, priority: P)? {
     guard let last = heap.popLast(), let lastPri = priority.popLast() else {
       return nil
