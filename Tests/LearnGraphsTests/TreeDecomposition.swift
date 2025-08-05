@@ -85,6 +85,23 @@ func testTreeDecompositionGrid(algorithm: TreeDecompositionAlgorithm) {
 }
 
 @Test(arguments: [TreeDecompositionAlgorithm.arnborg])
+func testTreeDecompositionSeparateComponents(algorithm: TreeDecompositionAlgorithm) {
+  let g = Graph(
+    vertices: 0..<8,
+    edges: [
+      Edge(0, 1), Edge(1, 2), Edge(2, 3), Edge(3, 0), Edge(4, 5), Edge(5, 6), Edge(6, 7),
+      Edge(7, 4),
+    ]
+  )
+  let maybeTree = g.treeDecomposition(algorithm: algorithm, maxTreewidth: 2)
+  #expect(maybeTree != nil, "tree could not be found")
+  guard let tree = maybeTree else { return }
+  #expect(getTreeWidth(tree) == 2)
+  testValidDecomp(graph: g, tree: tree)
+  testCreateNiceDecomp(graph: g, tree: tree)
+}
+
+@Test(arguments: [TreeDecompositionAlgorithm.arnborg])
 func testTreeDecompositionRandomKTree(algorithm: TreeDecompositionAlgorithm) {
   for (count, k) in [(30, 3), (5, 4)] {
     for _ in 0..<count {

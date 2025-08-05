@@ -67,3 +67,25 @@ func testIsChordalPentagon() {
   g.remove(edge: Edge(0, 2))
   #expect(g.isChordal())
 }
+
+@Test
+func testIsChordalKTree() {
+  for _ in 0..<10 {
+    let g = Graph(randomKTree: 0..<20, k: (1...10).randomElement()!)
+    #expect(g.isChordal())
+  }
+}
+
+@Test
+func testMCSTriangulate() {
+  var tested = 0
+  while tested < 20 {
+    var g = Graph(random: 0..<20, edgeProb: 0.1)
+    if g.isChordal() {
+      continue
+    }
+    g.mcsTriangulate()
+    #expect(g.isChordal())
+    tested += 1
+  }
+}
