@@ -3,7 +3,7 @@ import Testing
 
 @testable import LearnGraphs
 
-@Test(arguments: [IsomorphismAlgorithm.bruteForce])
+@Test(arguments: [IsomorphismAlgorithm.bruteForce, .vf2])
 func testIsomorphismPermutedRandom(_ algo: IsomorphismAlgorithm) {
   for _ in 0..<20 {
     let count = Int.random(in: 3...5)
@@ -21,7 +21,7 @@ func testIsomorphismPermutedRandom(_ algo: IsomorphismAlgorithm) {
   }
 }
 
-@Test(arguments: [IsomorphismAlgorithm.bruteForce])
+@Test(arguments: [IsomorphismAlgorithm.bruteForce, .vf2])
 func testIsomorphismMismatchedEdgeCount(_ algo: IsomorphismAlgorithm) {
   for _ in 0..<20 {
     let count = Int.random(in: 3...5)
@@ -35,7 +35,7 @@ func testIsomorphismMismatchedEdgeCount(_ algo: IsomorphismAlgorithm) {
   }
 }
 
-@Test(arguments: [IsomorphismAlgorithm.bruteForce])
+@Test(arguments: [IsomorphismAlgorithm.bruteForce, .vf2])
 func testIsomorphismSeparateCycles(_ algo: IsomorphismAlgorithm) {
   // Two separate cycles
   let g1 = Graph(
