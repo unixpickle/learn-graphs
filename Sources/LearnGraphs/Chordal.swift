@@ -73,4 +73,46 @@ extension Graph {
     return g
   }
 
+  /// Create a tree decomposition of a chordal graph.
+  ///
+  /// Returns nil if the graph is not chordal.
+  public func chordalTreeDecomposition() -> Graph<TreeDecompositionBag<V>>? {
+    if !isChordal() {
+      return nil
+    }
+
+    var result = Graph<TreeDecompositionBag<V>>()
+    var vertexToNode = [V: TreeDecompositionBag<V>]()
+
+    let peo = Array(maximumCardinalitySearch().reversed())
+    let v2i = Dictionary(uniqueKeysWithValues: zip(peo, peo.indices))
+
+    for (i, x) in peo.enumerated() {
+      let neighbors = neighbors(vertex: x)
+      let bag = neighbors.filter { v2i[$0]! > i }
+      let newNode = TreeDecompositionBag(bag: Set(bag + [x]))
+      result.insert(vertex: newNode)
+      vertexToNode[x] = newNode
+    }
+
+    for (i, x) in peo.enumerated() {
+      let neighbors = neighbors(vertex: x)
+      if let next = neighbors.filter({ v2i[$0]! > i }).min(by: { v2i[$0]! < v2i[$1]! }) {
+        result.insertEdge(vertexToNode[x]!, vertexToNode[next]!)
+      }
+    }
+
+    // If there are multiple components, we should connect them
+    // to make a tree.
+    let components = result.components()
+    var joinedResult = components.first!
+    let root = joinedResult.vertices.first!
+    for c in components[1...] {
+      joinedResult.insert(graph: c)
+      joinedResult.insertEdge(root, c.vertices.first!)
+    }
+
+    return joinedResult
+  }
+
 }

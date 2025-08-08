@@ -89,3 +89,19 @@ func testMCSTriangulate() {
     tested += 1
   }
 }
+
+@Test(arguments: [false, true])
+func testChordalTreeDecomposition(multiComponent: Bool) {
+  for _ in 0..<10 {
+    var randomG = Graph(random: 0..<10, edgeProb: 0.2)
+    while (randomG.componentCount() != 1) != multiComponent {
+      randomG = Graph(random: 0..<10, edgeProb: 0.2)
+    }
+    let g = randomG.mcsTriangulated()
+    let maybeTree = g.chordalTreeDecomposition()
+    #expect(maybeTree != nil, "tree could not be found")
+    guard let tree = maybeTree else { return }
+    testValidDecomp(graph: g, tree: tree)
+    testCreateNiceDecomp(graph: g, tree: tree)
+  }
+}
