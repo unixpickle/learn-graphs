@@ -4,6 +4,8 @@ public enum IsomorphismAlgorithm: Sendable {
   /// The algorithm proposed in "An Improved Algorithm for Matching Large Graphs"
   /// https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=f3e10bd7521ec6263a58fdaa4369dfe8ad50888c
   case vf2
+
+  case vf2Hash(iters: Int)
 }
 
 extension Graph {
@@ -24,6 +26,8 @@ extension Graph {
       return bruteForceIsomorphism(to: g)
     case .vf2:
       return vf2(to: g)
+    case .vf2Hash(let iters):
+      return vf2(to: g, hashIters: iters)
     }
   }
 
@@ -63,13 +67,34 @@ extension Graph {
     return nil
   }
 
+  internal func hashVertices(iters: Int) -> [V: Int] {
+    let vs = Array(vertices)
+    var hashes = Dictionary(
+      uniqueKeysWithValues: zip(vs, vs.map { neighbors(vertex: $0).count })
+    )
+    func nestedHash(_ i: V) -> Int {
+      var h = Hasher()
+      h.combine(hashes[i]!)
+      h.combine(Set(neighbors(vertex: i).map { hashes[$0]! }))
+      return h.finalize()
+    }
+    for _ in 0..<iters {
+      hashes = Dictionary(
+        uniqueKeysWithValues: zip(
+          vs, vs.map { i in nestedHash(i) }
+        )
+      )
+    }
+    return hashes
+  }
+
   private enum VF2StackOp {
     case startDepth(depth: Int)
     case finishDepth(depth: Int, v1: Int, v2: Int)
     case explore(depth: Int, try1: [Int], try2: Int)
   }
 
-  private func vf2<V1: Hashable>(to g: Graph<V1>) -> [V: V1]? {
+  private func vf2<V1: Hashable>(to g: Graph<V1>, hashIters: Int = 0) -> [V: V1]? {
     // Turn the two graphs into graphs of integers in [0, vertices.count).
     let verts1 = Array(vertices)
     let verts2 = Array(g.vertices)
@@ -78,6 +103,14 @@ extension Graph {
     let g1 = map { verts1ToIndex[$0]! }
     let g2 = g.map { verts2ToIndex[$0]! }
     let vertCount = vertices.count
+
+    func gToHash(_ g: Graph<Int>) -> [Int] {
+      let h = g.hashVertices(iters: hashIters)
+      return (0..<vertCount).map { h[$0]! }
+    }
+
+    let h1 = gToHash(g1)
+    let h2 = gToHash(g2)
 
     // Mapping from g1 to g2 (core1) and g2 to g1 (core2)
     var core1 = [Int?](repeating: nil, count: vertCount)
@@ -89,6 +122,9 @@ extension Graph {
     var adjacent2 = [Int](repeating: 0, count: vertCount)
 
     func checkCompatible(v1: Int, v2: Int) -> Bool {
+      if h1[v1] != h2[v2] {
+        return false
+      }
       let n1 = g1.neighbors(vertex: v1)
       let n2 = g2.neighbors(vertex: v2)
       if n1.count != n2.count {
