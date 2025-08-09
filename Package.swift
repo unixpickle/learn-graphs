@@ -62,5 +62,14 @@ let package = Package(
         "LearnGraphs"
       ]
     ),
+    .executableTarget(
+      name: "MapColor",
+      dependencies: [
+        "LearnGraphs"
+      ],
+      resources: [
+        .process("input.svg")
+      ]
+    ),
   ]
 )
