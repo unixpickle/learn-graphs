@@ -3,8 +3,8 @@ import Testing
 
 @testable import LearnGraphs
 
-@Test
-func testColoringCycle() {
+@Test(arguments: [ColoringAlgorithm.addContract, ColoringAlgorithm.treeDecomposition(.arnborg)])
+func testColoringCycle(algorithm: ColoringAlgorithm) {
   let graph = Graph(
     vertices: 0..<5,
     edges: [
@@ -14,24 +14,16 @@ func testColoringCycle() {
       Edge(3, 4),
     ]
   )
-  let rawTree = graph.treeDecomposition()
-  #expect(rawTree != nil, "could not compute tree decomposition")
-  guard let tree = rawTree else {
-    return
-  }
-  let coloring = graph.color([0, 1], usingTree: NiceTreeDecomposition(tree: tree))
-  #expect(coloring != nil)
-  guard let coloring = coloring else {
-    return
-  }
+  let (coloring, count) = graph.color(algorithm: algorithm)
+  #expect(count == 2)
   #expect(coloring[0] == coloring[2])
   #expect(coloring[0] != coloring[1])
   #expect(coloring[0] != coloring[3])
   #expect(coloring[1] == coloring[3])
 }
 
-@Test
-func testColoringSquareWithDiagonal() {
+@Test(arguments: [ColoringAlgorithm.addContract, ColoringAlgorithm.treeDecomposition(.arnborg)])
+func testColoringSquareWithDiagonal(algorithm: ColoringAlgorithm) {
   let graph = Graph(
     vertices: 0..<5,
     edges: [
@@ -42,39 +34,28 @@ func testColoringSquareWithDiagonal() {
       Edge(0, 2),
     ]
   )
-  let rawTree = graph.treeDecomposition()
-  #expect(rawTree != nil, "could not compute tree decomposition")
-  guard let tree = rawTree else {
-    return
-  }
-  let coloring2 = graph.color([0, 1], usingTree: NiceTreeDecomposition(tree: tree))
-  #expect(coloring2 == nil)
-  let coloring3 = graph.color([0, 1, 2], usingTree: NiceTreeDecomposition(tree: tree))
-  guard let coloring = coloring3 else {
-    return
-  }
+  let (coloring, count) = graph.color(algorithm: algorithm)
+  #expect(count == 3)
   testValidColoring(graph: graph, coloring: coloring)
 }
 
-@Test
-func testColoringRandomK3() {
+@Test(arguments: [ColoringAlgorithm.addContract, ColoringAlgorithm.treeDecomposition(.arnborg)])
+func testColoringRandomK3Small(algorithm: ColoringAlgorithm) {
+  for _ in 0..<5 {
+    let graph = Graph(randomKTree: 0..<6, k: 3)
+
+    let (coloring, count) = graph.color(algorithm: algorithm)
+    #expect(count == 4)
+    testValidColoring(graph: graph, coloring: coloring)
+  }
+}
+
+@Test(arguments: [ColoringAlgorithm.treeDecomposition(.arnborg)])
+func testColoringRandomK3(algorithm: ColoringAlgorithm) {
   for _ in 0..<5 {
     let graph = Graph(randomKTree: 0..<10, k: 3)
-    let rawTree = graph.treeDecomposition()
-    #expect(rawTree != nil, "could not compute tree decomposition")
-    guard let tree = rawTree else {
-      return
-    }
-    let nice = NiceTreeDecomposition(tree: tree)
-    let coloring2 = graph.color([0, 1], usingTree: nice)
-    #expect(coloring2 == nil)
-    let coloring3 = graph.color([0, 1, 2], usingTree: nice)
-    #expect(coloring3 == nil)
-    let coloring4 = graph.color([0, 1, 2, 3], usingTree: nice)
-    #expect(coloring4 != nil)
-    guard let coloring = coloring4 else {
-      return
-    }
+    let (coloring, count) = graph.color(algorithm: algorithm)
+    #expect(count == 4)
     testValidColoring(graph: graph, coloring: coloring)
   }
 }

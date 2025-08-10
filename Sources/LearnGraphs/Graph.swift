@@ -114,6 +114,12 @@ public struct Graph<V: Hashable>: Hashable {
     vertices.insert(vertex).inserted
   }
 
+  public func inserting(vertex: V) -> Graph<V> {
+    var g = self
+    g.insert(vertex: vertex)
+    return g
+  }
+
   @discardableResult
   public mutating func insertEdge(_ from: V, _ to: V) -> Bool {
     precondition(from != to, "cannot create an edge from a vertex to itself")
@@ -126,10 +132,22 @@ public struct Graph<V: Hashable>: Hashable {
     return adjacencies[to]!.insert(from).inserted
   }
 
+  public func insertingEdge(_ from: V, _ to: V) -> Graph<V> {
+    var g = self
+    g.insertEdge(from, to)
+    return g
+  }
+
   @discardableResult
   public mutating func insert(edge: Edge<V>) -> Bool {
     let items = Array(edge.vertices)
     return insertEdge(items[0], items[1])
+  }
+
+  public func inserting(edge: Edge<V>) -> Graph<V> {
+    var g = self
+    g.insert(edge: edge)
+    return g
   }
 
   public mutating func insert(graph: Graph<V>) {
