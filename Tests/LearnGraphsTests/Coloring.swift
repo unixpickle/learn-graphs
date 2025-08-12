@@ -3,7 +3,7 @@ import Testing
 
 @testable import LearnGraphs
 
-@Test(arguments: [ColoringAlgorithm.addContract, ColoringAlgorithm.treeDecomposition(.arnborg)])
+@Test(arguments: [ColoringAlgorithm.addContract, .treeDecomposition(.arnborg), .depthFirst])
 func testColoringCycle(algorithm: ColoringAlgorithm) {
   let graph = Graph(
     vertices: 0..<5,
@@ -22,7 +22,7 @@ func testColoringCycle(algorithm: ColoringAlgorithm) {
   #expect(coloring[1] == coloring[3])
 }
 
-@Test(arguments: [ColoringAlgorithm.addContract, ColoringAlgorithm.treeDecomposition(.arnborg)])
+@Test(arguments: [ColoringAlgorithm.addContract, .treeDecomposition(.arnborg), .depthFirst])
 func testColoringSquareWithDiagonal(algorithm: ColoringAlgorithm) {
   let graph = Graph(
     vertices: 0..<5,
@@ -39,7 +39,9 @@ func testColoringSquareWithDiagonal(algorithm: ColoringAlgorithm) {
   testValidColoring(graph: graph, coloring: coloring)
 }
 
-@Test(arguments: [ColoringAlgorithm.addContract, ColoringAlgorithm.treeDecomposition(.arnborg)])
+@Test(arguments: [
+  ColoringAlgorithm.addContract, ColoringAlgorithm.treeDecomposition(.arnborg), .depthFirst,
+])
 func testColoringRandomK3Small(algorithm: ColoringAlgorithm) {
   for _ in 0..<5 {
     let graph = Graph(randomKTree: 0..<6, k: 3)
@@ -50,7 +52,7 @@ func testColoringRandomK3Small(algorithm: ColoringAlgorithm) {
   }
 }
 
-@Test(arguments: [ColoringAlgorithm.treeDecomposition(.arnborg)])
+@Test(arguments: [ColoringAlgorithm.treeDecomposition(.arnborg), .depthFirst])
 func testColoringRandomK3(algorithm: ColoringAlgorithm) {
   for _ in 0..<5 {
     let graph = Graph(randomKTree: 0..<10, k: 3)

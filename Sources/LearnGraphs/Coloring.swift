@@ -1,9 +1,13 @@
 public enum ColoringAlgorithm: Sendable {
-  /// Color the graph by recursively adding edges or contracting unconnected vertices.
+  /// Recursively add edges or contract unconnected vertices.
   case addContract
 
-  /// Color using tree decomposition.
+  /// Compute an optimal tree decomposition and do dynamic programming
+  /// on top of it.
   case treeDecomposition(TreeDecompositionAlgorithm)
+
+  /// Use depth-first search.
+  case depthFirst
 }
 
 extension Graph {
@@ -15,6 +19,8 @@ extension Graph {
       colorAddContract()
     case .treeDecomposition(let algo):
       colorTreeDecomposition(algorithm: algo)
+    case .depthFirst:
+      colorDepthFirst()
     }
   }
 
@@ -88,6 +94,102 @@ extension Graph {
       }
     }
     return (colors: coloring, count: groups.count)
+  }
+
+  private enum ColorDepthFirstOp {
+    case color(V, Int)
+    case uncolor(V, oldColorCount: Int)
+    case finishColoring(V)
+  }
+
+  private func colorDepthFirst() -> (colors: [V: Int], count: Int) {
+    var currentAssignment: [V: Int] = [:]
+    var currentCount = 0
+
+    var bestAssignment: [V: Int]? = nil
+    var bestCount: Int? = nil
+
+    let firstV = vertices.first!
+    var opQueue: [ColorDepthFirstOp] = [.uncolor(firstV, oldColorCount: 0), .color(firstV, 0)]
+    var neighborQueue = PriorityQueue<V, Int>()
+    for v in vertices {
+      if v != firstV {
+        neighborQueue.push(v, priority: contains(edge: Edge(v, firstV)) ? 1 : 0)
+      }
+    }
+    while let op = opQueue.popLast() {
+      switch op {
+      case .color(let v, let color):
+        assert(!neighborQueue.contains(v))
+        assert(color <= currentCount)
+        if color == currentCount {
+          if let bc = bestCount, (currentCount + 1) >= bc {
+            // Prune this part of the search tree because we already
+            // have a better solution.
+            guard case .uncolor(let v1, let oldCount) = opQueue.popLast() else {
+              fatalError()
+            }
+            assert(v1 == v)
+            assert(oldCount == currentCount)
+            break
+          }
+          currentCount += 1
+        }
+        currentAssignment[v] = color
+
+        if let (nextV, priority) = neighborQueue.pop() {
+          for neighbor in neighbors(vertex: nextV) {
+            if let oldPriority = neighborQueue.currentPriority(for: neighbor) {
+              neighborQueue.modify(
+                item: neighbor,
+                priority: oldPriority + 1
+              )
+            }
+          }
+
+          opQueue.append(.finishColoring(nextV))
+
+          assert(priority == neighbors(vertex: nextV).count { currentAssignment[$0] != nil })
+          // Try existing colors.
+          let neighborColors = Set(neighbors(vertex: nextV).compactMap { currentAssignment[$0] })
+          for color in 0..<currentCount {
+            if !neighborColors.contains(color) {
+              opQueue.append(.uncolor(nextV, oldColorCount: currentCount))
+              opQueue.append(.color(nextV, color))
+            }
+          }
+
+          // Allocate a new color.
+          opQueue.append(.uncolor(nextV, oldColorCount: currentCount))
+          opQueue.append(.color(nextV, currentCount))
+        } else {
+          if bestCount == nil || currentCount < bestCount! {
+            bestCount = currentCount
+            bestAssignment = currentAssignment
+          }
+        }
+      case .uncolor(let v, let oldCount):
+        currentAssignment.removeValue(forKey: v)
+        currentCount = oldCount
+      case .finishColoring(let v):
+        assert(currentAssignment[v] == nil)
+        assert(!neighborQueue.contains(v))
+        var assignedNeighborCount = 0
+        for neighbor in neighbors(vertex: v) {
+          if let neighborPriority = neighborQueue.currentPriority(for: neighbor) {
+            neighborQueue.modify(
+              item: neighbor,
+              priority: neighborPriority - 1
+            )
+          } else {
+            assignedNeighborCount += 1
+          }
+        }
+        neighborQueue.push(v, priority: assignedNeighborCount)
+      }
+    }
+
+    return (colors: bestAssignment!, count: bestCount!)
   }
 
   private enum ColorOp {
