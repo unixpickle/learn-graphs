@@ -20,7 +20,7 @@ extension Graph {
     case .treeDecomposition(let algo):
       colorTreeDecomposition(algorithm: algo)
     case .depthFirst:
-      colorDepthFirst()
+      colorDepthFirst()!
     }
   }
 
@@ -97,33 +97,73 @@ extension Graph {
   }
 
   private enum ColorDepthFirstOp {
+    case beginColoring(V)
     case color(V, Int)
     case uncolor(V, oldColorCount: Int)
     case finishColoring(V)
   }
 
-  private func colorDepthFirst() -> (colors: [V: Int], count: Int) {
-    var currentAssignment: [V: Int] = [:]
-    var currentCount = 0
+  /// Use depth-first search to color the graph.
+  /// If specified, start with an initial color assignment.
+  public func colorDepthFirst(
+    using constraints: [V: Int]? = nil,
+    minColorCount: Int = 0,
+    maxColorCount: Int = Int.max
+  ) -> (colors: [V: Int], count: Int)? {
+    let unknownVertices =
+      if let keys = constraints?.keys {
+        Set(vertices.subtracting(keys))
+      } else {
+        vertices
+      }
+
+    var currentAssignment = constraints ?? [:]
+    var currentCount = max(minColorCount, (constraints?.values.max() ?? -1) + 1)
 
     var bestAssignment: [V: Int]? = nil
     var bestCount: Int? = nil
 
-    let firstV = vertices.first!
-    var opQueue: [ColorDepthFirstOp] = [.uncolor(firstV, oldColorCount: 0), .color(firstV, 0)]
+    guard let firstV = unknownVertices.first else {
+      // All of the colors have already been determined.
+      return (colors: currentAssignment, count: currentCount)
+    }
+
+    var opQueue: [ColorDepthFirstOp] = [.beginColoring(firstV)]
     var neighborQueue = PriorityQueue<V, Int>()
     for v in vertices {
       if v != firstV {
-        neighborQueue.push(v, priority: contains(edge: Edge(v, firstV)) ? 1 : 0)
+        neighborQueue.push(v, priority: neighbors(vertex: v).count { currentAssignment[$0] != nil })
       }
     }
     while let op = opQueue.popLast() {
       switch op {
+      case .beginColoring(let v):
+        for neighbor in neighbors(vertex: v) {
+          if let oldPriority = neighborQueue.currentPriority(for: neighbor) {
+            neighborQueue.modify(
+              item: neighbor,
+              priority: oldPriority + 1
+            )
+          }
+        }
+
+        // Allocate a new color, but only after we try existing ones.
+        opQueue.append(.uncolor(v, oldColorCount: currentCount))
+        opQueue.append(.color(v, currentCount))
+
+        // Try existing colors.
+        let neighborColors = Set(neighbors(vertex: v).compactMap { currentAssignment[$0] })
+        for color in 0..<currentCount {
+          if !neighborColors.contains(color) {
+            opQueue.append(.uncolor(v, oldColorCount: currentCount))
+            opQueue.append(.color(v, color))
+          }
+        }
       case .color(let v, let color):
         assert(!neighborQueue.contains(v))
         assert(color <= currentCount)
         if color == currentCount {
-          if let bc = bestCount, (currentCount + 1) >= bc {
+          if (currentCount + 1) >= min(maxColorCount, bestCount ?? Int.max) {
             // Prune this part of the search tree because we already
             // have a better solution.
             guard case .uncolor(let v1, let oldCount) = opQueue.popLast() else {
@@ -138,34 +178,16 @@ extension Graph {
         currentAssignment[v] = color
 
         if let (nextV, priority) = neighborQueue.pop() {
-          for neighbor in neighbors(vertex: nextV) {
-            if let oldPriority = neighborQueue.currentPriority(for: neighbor) {
-              neighborQueue.modify(
-                item: neighbor,
-                priority: oldPriority + 1
-              )
-            }
-          }
-
-          opQueue.append(.finishColoring(nextV))
-
           assert(priority == neighbors(vertex: nextV).count { currentAssignment[$0] != nil })
-          // Try existing colors.
-          let neighborColors = Set(neighbors(vertex: nextV).compactMap { currentAssignment[$0] })
-          for color in 0..<currentCount {
-            if !neighborColors.contains(color) {
-              opQueue.append(.uncolor(nextV, oldColorCount: currentCount))
-              opQueue.append(.color(nextV, color))
-            }
-          }
-
-          // Allocate a new color.
-          opQueue.append(.uncolor(nextV, oldColorCount: currentCount))
-          opQueue.append(.color(nextV, currentCount))
+          opQueue.append(.finishColoring(nextV))
+          opQueue.append(.beginColoring(nextV))
         } else {
           if bestCount == nil || currentCount < bestCount! {
             bestCount = currentCount
             bestAssignment = currentAssignment
+            if currentCount == minColorCount {
+              return (currentAssignment, currentCount)
+            }
           }
         }
       case .uncolor(let v, let oldCount):
@@ -189,7 +211,11 @@ extension Graph {
       }
     }
 
-    return (colors: bestAssignment!, count: bestCount!)
+    if let ba = bestAssignment, let bc = bestCount {
+      return (colors: ba, count: bc)
+    } else {
+      return nil
+    }
   }
 
   private enum ColorOp {

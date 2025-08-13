@@ -71,5 +71,11 @@ let package = Package(
         .process("input.svg")
       ]
     ),
+    .executableTarget(
+      name: "SudokuSolver",
+      dependencies: [
+        "LearnGraphs"
+      ]
+    ),
   ]
 )
