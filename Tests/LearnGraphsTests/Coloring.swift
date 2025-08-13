@@ -4,7 +4,7 @@ import Testing
 @testable import LearnGraphs
 
 @Test(arguments: [ColoringAlgorithm.addContract, .treeDecomposition(.arnborg), .depthFirst])
-func testColoringCycle(algorithm: ColoringAlgorithm) {
+func testColoringLine(algorithm: ColoringAlgorithm) {
   let graph = Graph(
     vertices: 0..<5,
     edges: [
