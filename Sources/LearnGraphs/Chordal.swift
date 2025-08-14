@@ -6,9 +6,9 @@ extension Graph {
   /// chordal, or to prove that the graph is not chordal otherwise.
   ///
   /// If the graph is chordal, then the result is the reverse of the PEO.
-  public func maximumCardinalitySearch() -> [V] {
+  public func maximumCardinalitySearch(shuffle: Bool = false) -> [V] {
     var queue = PriorityQueue<V, Int>()
-    for v in vertices {
+    for v in (shuffle ? vertices.shuffled() : Array(vertices)) {
       queue.push(v, priority: 0)
     }
     var result: [V] = []
@@ -46,8 +46,8 @@ extension Graph {
   /// Greedily complete the graph to be chordal.
   ///
   /// This is not a minimum fill-in (i.e. it may be suboptimal).
-  public mutating func mcsTriangulate() {
-    let ordering = maximumCardinalitySearch().reversed()
+  public mutating func mcsTriangulate(shuffle: Bool = false) {
+    let ordering = maximumCardinalitySearch(shuffle: shuffle).reversed()
     let v2i = Dictionary(uniqueKeysWithValues: ordering.enumerated().map { ($0.1, $0.0) })
     for (i, v) in ordering.enumerated() {
       // Make sure the next neighbor is connected to all the neighbors after it.
@@ -67,9 +67,9 @@ extension Graph {
   /// Create a chordal completion of this graph using a greedy algorithm.
   ///
   /// This is not a minimum fill-in (i.e. it may be suboptimal).
-  public func mcsTriangulated() -> Graph<V> {
+  public func mcsTriangulated(shuffle: Bool = false) -> Graph<V> {
     var g = self
-    g.mcsTriangulate()
+    g.mcsTriangulate(shuffle: shuffle)
     return g
   }
 

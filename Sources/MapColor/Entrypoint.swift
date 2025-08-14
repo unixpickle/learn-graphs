@@ -8,8 +8,17 @@ struct App {
     let graph = graphFromMap()
 
     print("computing tree decomp...")
-    let decomp = graph.mcsTriangulated().chordalTreeDecomposition()!
-    print(" => upper-bounded treewidth", decomp.vertices.map { $0.bag.count - 1 }.max()!)
+    var decomp = graph.mcsTriangulated(shuffle: true).chordalTreeDecomposition()!
+    while decomp.vertices.map({ $0.bag.count - 1 }).max()! > 6 {
+      print("found suboptimal tree decomp: ", decomp.vertices.map { $0.bag.count - 1 }.max()!)
+      decomp = graph.mcsTriangulated(shuffle: true).chordalTreeDecomposition()!
+    }
+    print("found optimal tree decomposition...")
+    let dotRep = decomp.treeDotRepresentation { v in
+      v.bag.sorted().joined(separator: ", ").uppercased()
+    }!
+    try? dotRep.write(to: URL(filePath: "treerep.dot"), atomically: true, encoding: .utf8)
+
     print("coloring...")
     let nice = NiceTreeDecomposition(tree: decomp)
     let coloring = graph.color(["red", "yellow", "green", "blue"], usingTree: nice)!
